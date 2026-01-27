@@ -2,7 +2,8 @@ import time
 import uuid
 from abc import ABC
 from functools import cached_property
-from typing import Any, cast
+from typing import Any
+from urllib.parse import urljoin
 
 import orjson
 import requests
@@ -37,7 +38,7 @@ class JobExecutor(Action, ABC):
     def wait_for_job_completion(self, job_id: str, timeout: int = 600) -> None:  # pragma: no cover
         """Wait until all job actions are done. Caution, can wait forever."""
 
-        job_info: JobBatchInformation = cast(JobBatchInformation, None)
+        job_info: JobBatchInformation | None = None
         job_is_running = True
 
         time_start = time.time()
@@ -58,6 +59,9 @@ class JobExecutor(Action, ABC):
             if job_is_running:
                 time.sleep(1)
 
+        if job_info is None:
+            raise RuntimeError(f"No job information returned for job id {job_id}")
+
         if job_info.status.error > 0:
             self.log(
                 message=f"One or more tasks failed for job id {job_id}",  # pragma: no cover
@@ -72,7 +76,7 @@ class JobExecutor(Action, ABC):
 
     def get_paginated_results(self, endpoint: str) -> list[dict]:
         results = []
-        url = f"{self.client.instance_url}{endpoint}"
+        url = urljoin(self.client.instance_url, endpoint)
 
         while True:
             response: requests.Response = self.client.get(url=url)
@@ -84,7 +88,7 @@ class JobExecutor(Action, ABC):
             next_url = js.get("next")
 
             if next_url:
-                url = f"{self.client.instance_url}{next_url}"
+                url = urljoin(self.client.instance_url, next_url)
 
             else:
                 break

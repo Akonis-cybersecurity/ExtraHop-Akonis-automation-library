@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Change the flow for Job endpoints
-- Get Processes and Get Pipes actions returns actual processes and pipes
+- Get Processes and Get Pipes actions return actual processes and pipes
 - Add option to save processes/pipes data to file
 
 ## 2026-01-23 - 1.28.16
