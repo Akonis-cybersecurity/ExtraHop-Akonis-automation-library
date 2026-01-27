@@ -77,7 +77,10 @@ class DownloadFileFromEndpointAction(JobExecutor):
         return artefact_info
 
     def fetch_artefact_data(self, artefact_info: dict[str, Any], verify_digest: bool = False) -> io.IOBase:
-        artefact_sha256 = artefact_info["sha256"]
+        artefact_sha256 = artefact_info.get("sha256")
+        if not artefact_sha256 or not isinstance(artefact_sha256, str):
+            raise RuntimeError("Missing or invalid 'sha256' in artefact_info when fetching artefact data")
+
         artefact_download_endpoint: str = urllib.parse.urljoin(
             base=self.client.instance_url,
             url=f"/api/data/telemetry/Binary/download/{artefact_sha256}/",
