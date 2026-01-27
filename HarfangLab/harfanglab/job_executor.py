@@ -2,7 +2,7 @@ import time
 import uuid
 from abc import ABC
 from functools import cached_property
-from typing import Any
+from typing import Any, cast
 
 import orjson
 import requests
@@ -37,7 +37,7 @@ class JobExecutor(Action, ABC):
     def wait_for_job_completion(self, job_id: str, timeout: int = 600) -> None:  # pragma: no cover
         """Wait until all job actions are done. Caution, can wait forever."""
 
-        job_info: JobBatchInformation | None = None
+        job_info: JobBatchInformation = cast(JobBatchInformation, None)
         job_is_running = True
 
         time_start = time.time()
