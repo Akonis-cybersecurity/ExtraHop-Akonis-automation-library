@@ -1,0 +1,108 @@
+{
+  "uuid": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+  "name": "ExtraHop Detections",
+  "slug": "extrahop-detections",
+  "description": "Collect security detections from ExtraHop Reveal(x) NDR platform. Supports filtering by categories, risk score, and status. Includes MITRE ATT&CK mappings and automatic deduplication.",
+  "docker_parameters": "extrahop_detections_connector",
+  "arguments": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "ExtraHop Detections Connector Configuration",
+    "properties": {
+      "intake_key": {
+        "type": "string",
+        "title": "Intake Key",
+        "description": "SEKOIA.IO Intake Key for event forwarding",
+        "secret": true
+      },
+      "intake_server": {
+        "type": "string",
+        "title": "Intake Server",
+        "description": "SEKOIA.IO Intake URL",
+        "default": "https://intake.sekoia.io"
+      },
+      "detection_categories": {
+        "type": "array",
+        "title": "Detection Categories",
+        "description": "Detection categories to collect (empty for all)",
+        "items": {
+          "type": "string",
+          "enum": [
+            "sec",
+            "sec.action",
+            "sec.attack",
+            "sec.botnet",
+            "sec.caution",
+            "sec.command",
+            "sec.cryptomining",
+            "sec.dos",
+            "sec.exfil",
+            "sec.exploit",
+            "sec.hardening",
+            "sec.lateral",
+            "sec.ransomware",
+            "sec.recon",
+            "perf",
+            "perf.auth",
+            "perf.db",
+            "perf.network",
+            "perf.service",
+            "perf.storage",
+            "perf.virtual",
+            "perf.web"
+          ]
+        },
+        "default": []
+      },
+      "min_risk_score": {
+        "type": "integer",
+        "title": "Minimum Risk Score",
+        "description": "Minimum risk score for detections (0-99)",
+        "minimum": 0,
+        "maximum": 99,
+        "default": 0
+      },
+      "detection_statuses": {
+        "type": "array",
+        "title": "Detection Statuses",
+        "description": "Detection statuses to collect",
+        "items": {
+          "type": "string",
+          "enum": ["new", "in_progress", "closed", "acknowledged"]
+        },
+        "default": ["new", "in_progress", "acknowledged"]
+      },
+      "polling_frequency_minutes": {
+        "type": "integer",
+        "title": "Polling Frequency (minutes)",
+        "description": "Minutes between each poll (1-60)",
+        "minimum": 1,
+        "maximum": 60,
+        "default": 5
+      },
+      "historical_days": {
+        "type": "integer",
+        "title": "Historical Days",
+        "description": "Days of historical data to fetch on first run",
+        "minimum": 1,
+        "maximum": 30,
+        "default": 7
+      },
+      "batch_size": {
+        "type": "integer",
+        "title": "Batch Size",
+        "description": "Number of detections to fetch per API request",
+        "minimum": 100,
+        "maximum": 10000,
+        "default": 1000
+      },
+      "include_audit_logs": {
+        "type": "boolean",
+        "title": "Include Audit Logs",
+        "description": "Also collect audit log events",
+        "default": false
+      }
+    },
+    "required": ["intake_key"]
+  }
+}

@@ -1,52 +1,53 @@
 [tool.poetry]
-name = "Automation module for Extrahop-akonis"
-version = "0.0"
-description = ""
-authors = []
-package-mode = false
+name = "extrahop-connector"
+version = "1.0.0"
+description = "ExtraHop Reveal(x) NDR connector for SEKOIA.IO"
+authors = ["SEKOIA.IO"]
+readme = "README.md"
+packages = [{include = "extrahop"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-sekoia-automation-sdk = "^1.22.1"
+sekoia-automation-sdk = "^1.21.0"
+aiohttp = "^3.9.0"
+aiolimiter = "^1.1.0"
+cachetools = "^6.2.3"
+pydantic = "^2.5.0"
+tenacity = "^8.2.0"
+prometheus-client = "^0.21.0"
 
-[tool.poetry.dev-dependencies]
-pytest = "*"
-pytest-cov = "*"
-requests = "*"
-requests-mock = "*"
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-asyncio = "^0.23.0"
+pytest-cov = "^4.1.0"
+aioresponses = "^0.7.6"
+black = "^24.1.0"
+ruff = "^0.2.0"
+mypy = "^1.8.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.black]
-line-length = 119
-target-version = ['py38']
-include = '\.pyi?$'
-
-[tool.isort]
-profile = "black"
-line_length = 119
-
-[tool.coverage.run]
-omit = [
-    "tests/*",
-    "main.py",
-]
-
 [tool.pytest.ini_options]
-minversion = "6.0"
-testpaths = [
-    "tests",
-]
-addopts = '''
-  --strict-markers
-  --tb=short
-  --cov=extrahop-akonis_modules
-  --cov-branch
-  --cache-clear
-  --cov-report=html
-  --cov-report=term-missing:skip-covered
-  --cov-fail-under=5
-  --capture=sys
-'''
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v --cov=extrahop --cov-report=term-missing"
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
