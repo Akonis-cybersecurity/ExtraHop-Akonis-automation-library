@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the ExtraHop Reveal(x) NDR connector will be documented in this file.
+All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -42,3 +42,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SSL certificate verification enabled by default
 - API key stored as secret in configuration
 - Non-root user in Docker container
+
+[1.0.0]: https://github.com/SEKOIA-IO/automation-library
