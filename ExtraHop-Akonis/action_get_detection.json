@@ -1,0 +1,37 @@
+{
+  "uuid": "c9d0e1f2-3a4b-5c6d-7e8f-9a0b1c2d3e4f",
+  "name": "Get Detection",
+  "slug": "get_detection",
+  "description": "Retrieve detailed information about a specific detection from ExtraHop Reveal(x), including participants, MITRE mappings, and risk score.",
+  "docker_parameters": "get_detection",
+  "arguments": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "Get Detection Arguments",
+    "properties": {
+      "detection_id": {
+        "type": "integer",
+        "title": "Detection ID",
+        "description": "The unique identifier of the detection to retrieve"
+      }
+    },
+    "required": ["detection_id"]
+  },
+  "results": {
+    "type": "object",
+    "properties": {
+      "success": {
+        "type": "boolean",
+        "description": "Whether the operation was successful"
+      },
+      "detection": {
+        "type": "object",
+        "description": "The detection object with full details"
+      },
+      "error": {
+        "type": "string",
+        "description": "Error message if operation failed"
+      }
+    }
+  }
+}

@@ -419,3 +419,286 @@ class TestFetchAllDetections:
                 results = await client.fetch_all_detections(batch_size=100)
 
             assert len(results) == 150
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_empty_result(self, client):
+        """Test fetching all detections with no results."""
+        with aioresponses() as mocked:
+            mocked.post(
+                "https://extrahop.example.com/api/v1/detections/search",
+                payload=[],
+            )
+
+            async with client:
+                results = await client.fetch_all_detections()
+
+            assert len(results) == 0
+
+
+class TestUpdateDetection:
+    """Tests for update_detection endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_update_detection_status(self, client, sample_detection):
+        """Test updating detection status."""
+        updated_detection = {**sample_detection, "status": "closed"}
+        with aioresponses() as mocked:
+            mocked.patch(
+                "https://extrahop.example.com/api/v1/detections/12345",
+                payload=updated_detection,
+            )
+
+            async with client:
+                result = await client.update_detection(
+                    detection_id=12345,
+                    status="closed",
+                )
+
+            assert result["status"] == "closed"
+
+    @pytest.mark.asyncio
+    async def test_update_detection_all_fields(self, client, sample_detection):
+        """Test updating detection with all fields."""
+        updated_detection = {
+            **sample_detection,
+            "status": "closed",
+            "assignee": "analyst",
+            "resolution": "action_taken",
+            "ticket_id": "INC001",
+            "ticket_url": "https://snow.example.com/INC001",
+        }
+        with aioresponses() as mocked:
+            mocked.patch(
+                "https://extrahop.example.com/api/v1/detections/12345",
+                payload=updated_detection,
+            )
+
+            async with client:
+                result = await client.update_detection(
+                    detection_id=12345,
+                    status="closed",
+                    assignee="analyst",
+                    resolution="action_taken",
+                    ticket_id="INC001",
+                    ticket_url="https://snow.example.com/INC001",
+                )
+
+            assert result["ticket_id"] == "INC001"
+
+
+class TestGetDevice:
+    """Tests for get_device endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_get_device_success(self, client, sample_device):
+        """Test getting a specific device."""
+        with aioresponses() as mocked:
+            mocked.get(
+                "https://extrahop.example.com/api/v1/devices/5678",
+                payload=sample_device,
+            )
+
+            async with client:
+                result = await client.get_device(5678)
+
+            assert result["id"] == 5678
+            assert result["display_name"] == "WORKSTATION-01"
+
+    @pytest.mark.asyncio
+    async def test_get_device_not_found(self, client):
+        """Test getting non-existent device."""
+        with aioresponses() as mocked:
+            mocked.get(
+                "https://extrahop.example.com/api/v1/devices/99999",
+                status=404,
+                payload={"error_message": "Device not found"},
+            )
+
+            async with client:
+                with pytest.raises(ExtraHopNotFoundError):
+                    await client.get_device(99999)
+
+
+class TestGetAlert:
+    """Tests for get_alert endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_get_alert_success(self, client):
+        """Test getting a specific alert."""
+        sample_alert = {"id": 1, "name": "High CPU Alert", "threshold": 90}
+        with aioresponses() as mocked:
+            mocked.get(
+                "https://extrahop.example.com/api/v1/alerts/1",
+                payload=sample_alert,
+            )
+
+            async with client:
+                result = await client.get_alert(1)
+
+            assert result["id"] == 1
+            assert result["name"] == "High CPU Alert"
+
+
+class TestGetMetrics:
+    """Tests for get_metrics endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_get_metrics_success(self, client):
+        """Test getting metrics."""
+        sample_metrics = {
+            "cycle": "5min",
+            "stats": [{"time": 1704067200000, "values": [100, 200]}],
+        }
+        with aioresponses() as mocked:
+            mocked.post(
+                "https://extrahop.example.com/api/v1/metrics",
+                payload=sample_metrics,
+            )
+
+            async with client:
+                result = await client.get_metrics(
+                    cycle="5min",
+                    from_time=1704067200000,
+                    until_time=1704153600000,
+                    metric_category="net",
+                    metric_specs=[{"name": "bytes_in"}],
+                    object_type="device",
+                    object_ids=[5678],
+                )
+
+            assert result["cycle"] == "5min"
+
+
+class TestSearchDetectionsAdvanced:
+    """Advanced tests for search_detections endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_search_detections_with_time_range(self, client, sample_detection):
+        """Test detection search with time range."""
+        with aioresponses() as mocked:
+            mocked.post(
+                "https://extrahop.example.com/api/v1/detections/search",
+                payload=[sample_detection],
+            )
+
+            async with client:
+                results = await client.search_detections(
+                    from_time=1704067200000,
+                    until_time=1704153600000,
+                )
+
+            assert len(results) == 1
+
+    @pytest.mark.asyncio
+    async def test_search_detections_with_types(self, client, sample_detection):
+        """Test detection search with types filter."""
+        with aioresponses() as mocked:
+            mocked.post(
+                "https://extrahop.example.com/api/v1/detections/search",
+                payload=[sample_detection],
+            )
+
+            async with client:
+                results = await client.search_detections(
+                    types=["lateral_movement_smb", "c2_dns_tunnel"],
+                )
+
+            assert len(results) == 1
+
+    @pytest.mark.asyncio
+    async def test_search_detections_non_list_response(self, client):
+        """Test detection search with non-list response returns empty list."""
+        with aioresponses() as mocked:
+            mocked.post(
+                "https://extrahop.example.com/api/v1/detections/search",
+                payload={"error": "unexpected"},  # Non-list response
+            )
+
+            async with client:
+                results = await client.search_detections()
+
+            assert results == []
+
+
+class TestSearchRecordsAdvanced:
+    """Advanced tests for search_records endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_search_records_with_filter(self, client):
+        """Test searching records with filter object."""
+        sample_records = [{"id": 1, "ipaddr": "192.168.1.100"}]
+        with aioresponses() as mocked:
+            mocked.post(
+                "https://extrahop.example.com/api/v1/records/search",
+                payload=sample_records,
+            )
+
+            async with client:
+                results = await client.search_records(
+                    from_time=1704067200000,
+                    until_time=1704153600000,
+                    filter_obj={"field": "ipaddr", "operand": "192.168.1.100", "operator": "="},
+                )
+
+            assert len(results) == 1
+
+
+class TestConnectionAdvanced:
+    """Advanced tests for test_connection method."""
+
+    @pytest.mark.asyncio
+    async def test_connection_generic_exception(self, client):
+        """Test connection with generic exception."""
+        with aioresponses() as mocked:
+            # Mock a network error by not adding any response
+            mocked.post(
+                "https://extrahop.example.com/api/v1/detections/search",
+                exception=Exception("Network error"),
+            )
+            mocked.get(
+                "https://extrahop.example.com/api/v1/detections/formats",
+                exception=Exception("Network error"),
+            )
+
+            async with client:
+                result = await client.test_connection()
+
+            assert result is False
+
+
+class TestErrorHandlingAdvanced:
+    """Advanced error handling tests."""
+
+    @pytest.mark.asyncio
+    async def test_error_with_text_response(self, client):
+        """Test error handling with non-JSON text response."""
+        with aioresponses() as mocked:
+            mocked.get(
+                "https://extrahop.example.com/api/v1/detections/formats",
+                status=500,
+                body="Internal Server Error",
+                content_type="text/plain",
+            )
+
+            async with client:
+                with pytest.raises(ExtraHopAPIError) as exc_info:
+                    await client.get_detection_formats()
+
+            assert exc_info.value.status_code == 500
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_without_retry_after(self, client):
+        """Test rate limit error without Retry-After header."""
+        with aioresponses() as mocked:
+            for _ in range(5):
+                mocked.get(
+                    "https://extrahop.example.com/api/v1/detections/formats",
+                    status=429,
+                    payload={"error_message": "Rate limit exceeded"},
+                )
+
+            async with client:
+                with pytest.raises(ExtraHopRateLimitError) as exc_info:
+                    await client.get_detection_formats()
+
+            assert exc_info.value.retry_after is None

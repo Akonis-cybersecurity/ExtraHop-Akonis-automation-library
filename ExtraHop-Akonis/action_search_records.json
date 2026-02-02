@@ -1,0 +1,67 @@
+{
+  "uuid": "f2a3b4c5-6d7e-8f9a-0b1c-2d3e4f5a6b7c",
+  "name": "Search Records",
+  "slug": "search_records",
+  "description": "Search for network records (flows, transactions) in ExtraHop Reveal(x) within a specified time range. Useful for forensic investigation.",
+  "docker_parameters": "search_records",
+  "arguments": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "Search Records Arguments",
+    "properties": {
+      "from_time": {
+        "type": "integer",
+        "title": "From Time",
+        "description": "Start timestamp in milliseconds since epoch"
+      },
+      "until_time": {
+        "type": "integer",
+        "title": "Until Time",
+        "description": "End timestamp in milliseconds since epoch"
+      },
+      "record_types": {
+        "type": "array",
+        "title": "Record Types",
+        "description": "Types of records to search (e.g., ~http, ~dns, ~ssl)",
+        "items": {
+          "type": "string"
+        }
+      },
+      "ip_address": {
+        "type": "string",
+        "title": "IP Address",
+        "description": "Filter records by IP address"
+      },
+      "limit": {
+        "type": "integer",
+        "title": "Limit",
+        "description": "Maximum number of records to return",
+        "default": 1000,
+        "minimum": 1,
+        "maximum": 10000
+      }
+    },
+    "required": ["from_time", "until_time"]
+  },
+  "results": {
+    "type": "object",
+    "properties": {
+      "success": {
+        "type": "boolean",
+        "description": "Whether the operation was successful"
+      },
+      "records": {
+        "type": "array",
+        "description": "List of matching records"
+      },
+      "count": {
+        "type": "integer",
+        "description": "Number of records found"
+      },
+      "error": {
+        "type": "string",
+        "description": "Error message if operation failed"
+      }
+    }
+  }
+}

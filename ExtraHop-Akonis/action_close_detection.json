@@ -1,0 +1,44 @@
+{
+  "uuid": "f6a7b8c9-0d1e-2f3a-4b5c-6d7e8f9a0b1c",
+  "name": "Close Detection",
+  "slug": "close_detection",
+  "description": "Close a detection in ExtraHop Reveal(x) with an optional resolution.",
+  "docker_parameters": "close_detection",
+  "arguments": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "Close Detection Arguments",
+    "properties": {
+      "detection_id": {
+        "type": "integer",
+        "title": "Detection ID",
+        "description": "The unique identifier of the detection to close"
+      },
+      "resolution": {
+        "type": "string",
+        "title": "Resolution",
+        "description": "The resolution for closing the detection",
+        "enum": ["action_taken", "no_action_taken"],
+        "default": "action_taken"
+      }
+    },
+    "required": ["detection_id"]
+  },
+  "results": {
+    "type": "object",
+    "properties": {
+      "success": {
+        "type": "boolean",
+        "description": "Whether the operation was successful"
+      },
+      "detection": {
+        "type": "object",
+        "description": "The updated detection object"
+      },
+      "error": {
+        "type": "string",
+        "description": "Error message if operation failed"
+      }
+    }
+  }
+}

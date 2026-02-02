@@ -1,0 +1,48 @@
+{
+  "uuid": "b8c9d0e1-2f3a-4b5c-6d7e-8f9a0b1c2d3e",
+  "name": "Link Ticket to Detection",
+  "slug": "link_ticket_to_detection",
+  "description": "Link an external ticket (ServiceNow, Jira, etc.) to a detection in ExtraHop Reveal(x).",
+  "docker_parameters": "link_ticket",
+  "arguments": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "Link Ticket Arguments",
+    "properties": {
+      "detection_id": {
+        "type": "integer",
+        "title": "Detection ID",
+        "description": "The unique identifier of the detection"
+      },
+      "ticket_id": {
+        "type": "string",
+        "title": "Ticket ID",
+        "description": "The external ticket identifier (e.g., INC0012345)"
+      },
+      "ticket_url": {
+        "type": "string",
+        "title": "Ticket URL",
+        "description": "The URL to the external ticket (optional)",
+        "format": "uri"
+      }
+    },
+    "required": ["detection_id", "ticket_id"]
+  },
+  "results": {
+    "type": "object",
+    "properties": {
+      "success": {
+        "type": "boolean",
+        "description": "Whether the operation was successful"
+      },
+      "detection": {
+        "type": "object",
+        "description": "The updated detection object"
+      },
+      "error": {
+        "type": "string",
+        "description": "Error message if operation failed"
+      }
+    }
+  }
+}

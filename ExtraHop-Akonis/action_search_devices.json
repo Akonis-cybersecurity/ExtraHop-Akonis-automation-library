@@ -1,0 +1,58 @@
+{
+  "uuid": "e1f2a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
+  "name": "Search Devices",
+  "slug": "search_devices",
+  "description": "Search for devices in ExtraHop Reveal(x) by IP address, hostname, or MAC address.",
+  "docker_parameters": "search_devices",
+  "arguments": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "Search Devices Arguments",
+    "properties": {
+      "ip_address": {
+        "type": "string",
+        "title": "IP Address",
+        "description": "Search for devices by IP address"
+      },
+      "hostname": {
+        "type": "string",
+        "title": "Hostname",
+        "description": "Search for devices by hostname"
+      },
+      "mac_address": {
+        "type": "string",
+        "title": "MAC Address",
+        "description": "Search for devices by MAC address"
+      },
+      "limit": {
+        "type": "integer",
+        "title": "Limit",
+        "description": "Maximum number of devices to return",
+        "default": 100,
+        "minimum": 1,
+        "maximum": 1000
+      }
+    }
+  },
+  "results": {
+    "type": "object",
+    "properties": {
+      "success": {
+        "type": "boolean",
+        "description": "Whether the operation was successful"
+      },
+      "devices": {
+        "type": "array",
+        "description": "List of matching devices"
+      },
+      "count": {
+        "type": "integer",
+        "description": "Number of devices found"
+      },
+      "error": {
+        "type": "string",
+        "description": "Error message if operation failed"
+      }
+    }
+  }
+}

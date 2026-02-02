@@ -1,0 +1,43 @@
+{
+  "uuid": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
+  "name": "Update Detection Status",
+  "slug": "update_detection_status",
+  "description": "Update the status of a detection in ExtraHop Reveal(x). Valid statuses are: new, in_progress, closed, acknowledged.",
+  "docker_parameters": "update_detection_status",
+  "arguments": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "Update Detection Status Arguments",
+    "properties": {
+      "detection_id": {
+        "type": "integer",
+        "title": "Detection ID",
+        "description": "The unique identifier of the detection to update"
+      },
+      "status": {
+        "type": "string",
+        "title": "Status",
+        "description": "The new status for the detection",
+        "enum": ["new", "in_progress", "closed", "acknowledged"]
+      }
+    },
+    "required": ["detection_id", "status"]
+  },
+  "results": {
+    "type": "object",
+    "properties": {
+      "success": {
+        "type": "boolean",
+        "description": "Whether the operation was successful"
+      },
+      "detection": {
+        "type": "object",
+        "description": "The updated detection object"
+      },
+      "error": {
+        "type": "string",
+        "description": "Error message if operation failed"
+      }
+    }
+  }
+}

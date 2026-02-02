@@ -1,0 +1,42 @@
+{
+  "uuid": "e5f6a7b8-9c0d-1e2f-3a4b-5c6d7e8f9a0b",
+  "name": "Assign Detection",
+  "slug": "assign_detection",
+  "description": "Assign a detection to a specific user in ExtraHop Reveal(x).",
+  "docker_parameters": "assign_detection",
+  "arguments": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "Assign Detection Arguments",
+    "properties": {
+      "detection_id": {
+        "type": "integer",
+        "title": "Detection ID",
+        "description": "The unique identifier of the detection to assign"
+      },
+      "assignee": {
+        "type": "string",
+        "title": "Assignee",
+        "description": "The username to assign the detection to. Use '.none' to unassign."
+      }
+    },
+    "required": ["detection_id", "assignee"]
+  },
+  "results": {
+    "type": "object",
+    "properties": {
+      "success": {
+        "type": "boolean",
+        "description": "Whether the operation was successful"
+      },
+      "detection": {
+        "type": "object",
+        "description": "The updated detection object"
+      },
+      "error": {
+        "type": "string",
+        "description": "Error message if operation failed"
+      }
+    }
+  }
+}

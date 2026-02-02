@@ -1,0 +1,37 @@
+{
+  "uuid": "a7b8c9d0-1e2f-3a4b-5c6d-7e8f9a0b1c2d",
+  "name": "Acknowledge Detection",
+  "slug": "acknowledge_detection",
+  "description": "Acknowledge a detection in ExtraHop Reveal(x), marking it as reviewed.",
+  "docker_parameters": "acknowledge_detection",
+  "arguments": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "Acknowledge Detection Arguments",
+    "properties": {
+      "detection_id": {
+        "type": "integer",
+        "title": "Detection ID",
+        "description": "The unique identifier of the detection to acknowledge"
+      }
+    },
+    "required": ["detection_id"]
+  },
+  "results": {
+    "type": "object",
+    "properties": {
+      "success": {
+        "type": "boolean",
+        "description": "Whether the operation was successful"
+      },
+      "detection": {
+        "type": "object",
+        "description": "The updated detection object"
+      },
+      "error": {
+        "type": "string",
+        "description": "Error message if operation failed"
+      }
+    }
+  }
+}
