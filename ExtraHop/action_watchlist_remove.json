@@ -1,0 +1,34 @@
+{
+  "uuid": "a1b2c3d4-e006-4000-8000-000000000006",
+  "name": "ExtraHop Remove Device from Watchlist Action",
+  "slug": "action-extra-hop-remove-device-from-watchlist",
+  "description": "ExtraHop Remove Device from Watchlist Action",
+  "docker_parameters": "action-extra-hop-remove-device-from-watchlist",
+  "arguments": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "ExtraHopRemoveDeviceFromWatchlistAction Arguments",
+    "required": ["ip_address", "mac_address", "device_id"],
+    "properties": {
+      "ip_address": {
+        "type": "string",
+        "description": "IPv4 or IPv6 address of the device to remove"      },      "mac_address": {
+        "type": "string",
+        "description": "MAC address of the device to remove"      },      "device_id": {
+        "type": "string",
+        "description": "ExtraHop numeric device ID to remove"      }    }
+  },
+  "results": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "ExtraHopRemoveDeviceFromWatchlistAction Results",
+    "properties": {
+      "success": {
+        "type": "string",
+        "description": "True if the device was removed from the watchlist"
+      },      "message": {
+        "type": "string",
+        "description": "Result message"
+      }    }
+  }
+}

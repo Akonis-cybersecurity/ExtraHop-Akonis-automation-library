@@ -1,0 +1,40 @@
+{
+  "uuid": "a1b2c3d4-e003-4000-8000-000000000003",
+  "name": "ExtraHop Search Detections Action",
+  "slug": "action-extra-hop-search-detections",
+  "description": "ExtraHop Search Detections Action",
+  "docker_parameters": "action-extra-hop-search-detections",
+  "arguments": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "ExtraHopSearchDetectionsAction Arguments",
+    "required": ["from_time", "until_time", "limit", "status", "assignee", "min_risk_score"],
+    "properties": {
+      "from_time": {
+        "type": "string",
+        "description": "Start of search window (epoch milliseconds). Default: last 24h."      },      "until_time": {
+        "type": "string",
+        "description": "End of search window (epoch milliseconds). Default: now."      },      "limit": {
+        "type": "string",
+        "description": "Maximum number of detections to return (max 200)"      },      "status": {
+        "type": "string",
+        "description": "Filter by status: open or closed"      },      "assignee": {
+        "type": "string",
+        "description": "Filter by assignee email"      },      "min_risk_score": {
+        "type": "string",
+        "description": "Minimum risk score (0–100)"      }    }
+  },
+  "results": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "ExtraHopSearchDetectionsAction Results",
+    "properties": {
+      "detections": {
+        "type": "string",
+        "description": "List of detection objects matching the search criteria"
+      },      "total": {
+        "type": "string",
+        "description": "Total number of matching detections"
+      }    }
+  }
+}

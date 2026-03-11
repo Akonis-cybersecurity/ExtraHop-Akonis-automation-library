@@ -1,0 +1,42 @@
+{
+  "uuid": "a1b2c3d4-e002-4000-8000-000000000002",
+  "name": "ExtraHop Update Detection Action",
+  "slug": "action-extra-hop-update-detection",
+  "description": "ExtraHop Update Detection Action",
+  "docker_parameters": "action-extra-hop-update-detection",
+  "arguments": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "ExtraHopUpdateDetectionAction Arguments",
+    "required": ["detection_id", "status", "assignee", "resolution", "ticket_url", "ticket_id", "note"],
+    "properties": {
+      "detection_id": {
+        "type": "string",
+        "description": "ID of the ExtraHop detection to update"      },      "status": {
+        "type": "string",
+        "description": "New status: open or closed"      },      "assignee": {
+        "type": "string",
+        "description": "Email of analyst to assign the detection to"      },      "resolution": {
+        "type": "string",
+        "description": "Resolution: action_taken, no_action, false_positive"      },      "ticket_url": {
+        "type": "string",
+        "description": "URL of the external ticket (e.g. JIRA)"      },      "ticket_id": {
+        "type": "string",
+        "description": "External ticket ID (e.g. JIRA-1234)"      },      "note": {
+        "type": "string",
+        "description": "Free-text analyst note to add to the detection"      }    }
+  },
+  "results": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "ExtraHopUpdateDetectionAction Results",
+    "properties": {
+      "success": {
+        "type": "string",
+        "description": "True if the detection was updated successfully"
+      },      "detection_id": {
+        "type": "string",
+        "description": "ID of the updated detection"
+      }    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "uuid": "a1b2c3d4-e004-4000-8000-000000000004",
+  "name": "ExtraHop Get Device Action",
+  "slug": "action-extra-hop-get-device",
+  "description": "ExtraHop Get Device Action",
+  "docker_parameters": "action-extra-hop-get-device",
+  "arguments": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "ExtraHopGetDeviceAction Arguments",
+    "required": ["device_id"],
+    "properties": {
+      "device_id": {
+        "type": "string",
+        "description": "Numeric ID of the ExtraHop device"      }    }
+  },
+  "results": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "ExtraHopGetDeviceAction Results",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Device ID"
+      },      "display_name": {
+        "type": "string",
+        "description": "Device display name"
+      },      "ipaddr4": {
+        "type": "string",
+        "description": "IPv4 address"
+      },      "ipaddr6": {
+        "type": "string",
+        "description": "IPv6 address"
+      },      "macaddr": {
+        "type": "string",
+        "description": "MAC address"
+      },      "hostname": {
+        "type": "string",
+        "description": "Hostname"
+      },      "device_class": {
+        "type": "string",
+        "description": "Device class (node, remote, custom)"
+      },      "role": {
+        "type": "string",
+        "description": "Device role (server, client, desktop, etc.)"
+      },      "vendor": {
+        "type": "string",
+        "description": "Hardware vendor"
+      },      "critical": {
+        "type": "string",
+        "description": "Whether the device is marked as critical"
+      }    }
+  }
+}

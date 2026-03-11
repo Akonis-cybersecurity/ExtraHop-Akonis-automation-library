@@ -1,0 +1,54 @@
+{
+  "uuid": "a1b2c3d4-e001-4000-8000-000000000001",
+  "name": "ExtraHop Get Detection Action",
+  "slug": "action-extra-hop-get-detection",
+  "description": "ExtraHop Get Detection Action",
+  "docker_parameters": "action-extra-hop-get-detection",
+  "arguments": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "ExtraHopGetDetectionAction Arguments",
+    "required": ["detection_id"],
+    "properties": {
+      "detection_id": {
+        "type": "string",
+        "description": "ID of the ExtraHop detection to retrieve"      }    }
+  },
+  "results": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "title": "ExtraHopGetDetectionAction Results",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Detection ID"
+      },      "title": {
+        "type": "string",
+        "description": "Detection title"
+      },      "description": {
+        "type": "string",
+        "description": "Detection description"
+      },      "risk_score": {
+        "type": "string",
+        "description": "Detection risk score (0–100)"
+      },      "status": {
+        "type": "string",
+        "description": "Detection status: open or closed"
+      },      "assignee": {
+        "type": "string",
+        "description": "Email of the assigned analyst"
+      },      "start_time": {
+        "type": "string",
+        "description": "Detection start time (epoch milliseconds)"
+      },      "end_time": {
+        "type": "string",
+        "description": "Detection end time (epoch milliseconds)"
+      },      "resolution": {
+        "type": "string",
+        "description": "Resolution: action_taken, no_action, false_positive"
+      },      "ticket_url": {
+        "type": "string",
+        "description": "URL of the linked ticket"
+      }    }
+  }
+}
