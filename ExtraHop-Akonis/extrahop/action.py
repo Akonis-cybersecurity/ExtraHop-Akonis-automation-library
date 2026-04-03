@@ -18,8 +18,11 @@ class ExtraHopAction(Action):
     @cached_property
     def client(self) -> ExtraHopClient:
         """Get ExtraHop API client."""
+        cfg = self.module.configuration
         return ExtraHopClient(
-            hostname=self.module.configuration.hostname,
-            api_key=self.module.configuration.api_key,
-            verify_ssl=self.module.configuration.verify_ssl,
+            hostname=cfg.hostname,
+            api_key=cfg.api_key,
+            client_id=cfg.client_id,
+            client_secret=cfg.client_secret,
+            verify_ssl=cfg.verify_ssl,
         )

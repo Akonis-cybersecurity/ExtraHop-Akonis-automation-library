@@ -1,9 +1,10 @@
 """
 Async HTTP client for ExtraHop REST API.
 Implements all API endpoints with proper authentication, rate limiting, and error handling.
+Supports both API key (on-prem) and OAuth2 client credentials (RevealX 360 cloud).
 """
 
-import asyncio
+import time
 from typing import Any
 from urllib.parse import urljoin
 
@@ -28,56 +29,121 @@ class ExtraHopClient:
     """
     Async HTTP client for ExtraHop REST API.
 
-    Implements:
-    - API key authentication (Authorization: ExtraHop apikey=...)
-    - Rate limiting (1 request/second)
-    - Automatic retries with exponential backoff
-    - All major API endpoints
+    Authentication modes:
+    - API key: Authorization: ExtraHop apikey=... (on-prem appliances)
+    - OAuth2 client credentials: Bearer token from /oauth2/token (RevealX 360 cloud)
     """
 
     def __init__(
         self,
         hostname: str,
-        api_key: str,
+        api_key: str = "",
+        client_id: str = "",
+        client_secret: str = "",
         verify_ssl: bool = True,
         rate_limit: float = 1.0,
         timeout: int = 30,
     ):
-        """
-        Initialize ExtraHop API client.
-
-        Args:
-            hostname: ExtraHop appliance hostname or IP
-            api_key: REST API key
-            verify_ssl: Verify SSL certificates
-            rate_limit: Max requests per second
-            timeout: Request timeout in seconds
-        """
         self.hostname = hostname.rstrip("/")
         self.api_key = api_key
+        self.client_id = client_id
+        self.client_secret = client_secret
         self.verify_ssl = verify_ssl
         self.timeout = aiohttp.ClientTimeout(total=timeout)
         self.base_url = f"https://{self.hostname}/api/v1"
+
+        # OAuth2 state
+        self._use_oauth2 = bool(client_id and client_secret)
+        self._oauth2_token: str | None = None
+        self._oauth2_token_expires_at: float = 0.0
+        self._token_url = f"https://{self.hostname}/oauth2/token"
 
         # Rate limiter: default 1 request/second
         self._rate_limiter = AsyncLimiter(max_rate=rate_limit, time_period=1)
         self._session: aiohttp.ClientSession | None = None
 
-    @property
-    def _headers(self) -> dict[str, str]:
-        """Build request headers with authentication."""
-        return {
-            "Authorization": f"ExtraHop apikey={self.api_key}",
+    # ------------------------------------------------------------------
+    # OAuth2 token management
+    # ------------------------------------------------------------------
+    async def _ensure_oauth2_token(self) -> str:
+        """Get a valid OAuth2 Bearer token, refreshing if expired."""
+        # Return cached token if still valid (with 60s safety margin)
+        if self._oauth2_token and time.time() < (self._oauth2_token_expires_at - 60):
+            return self._oauth2_token
+
+        connector = aiohttp.TCPConnector(ssl=self.verify_ssl)
+        async with aiohttp.ClientSession(
+            timeout=self.timeout,
+            connector=connector,
+        ) as session:
+            async with session.post(
+                self._token_url,
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                },
+            ) as resp:
+                if resp.status != 200:
+                    try:
+                        body = await resp.text()
+                    except Exception:
+                        body = f"HTTP {resp.status}"
+                    raise ExtraHopAuthError(
+                        message=f"OAuth2 token request failed: {body}",
+                        status_code=resp.status,
+                    )
+                data = await resp.json()
+
+        self._oauth2_token = data["access_token"]
+        expires_in = int(data.get("expires_in", 3600))
+        self._oauth2_token_expires_at = time.time() + expires_in
+        return self._oauth2_token
+
+    def _invalidate_oauth2_token(self) -> None:
+        """Force token refresh on next request."""
+        self._oauth2_token = None
+        self._oauth2_token_expires_at = 0.0
+
+    # ------------------------------------------------------------------
+    # Session / headers
+    # ------------------------------------------------------------------
+    async def _get_auth_headers(self) -> dict[str, str]:
+        """Build authentication headers depending on auth mode."""
+        headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+        if self._use_oauth2:
+            token = await self._ensure_oauth2_token()
+            headers["Authorization"] = f"Bearer {token}"
+        else:
+            headers["Authorization"] = f"ExtraHop apikey={self.api_key}"
+        return headers
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create aiohttp session."""
-        if self._session is None or self._session.closed:
+        """Get or create aiohttp session.
+
+        For OAuth2, we recreate the session when the token changes
+        because headers are set at session level.
+        """
+        needs_new = self._session is None or self._session.closed
+
+        if self._use_oauth2:
+            # Ensure token is valid; if it was refreshed the session headers are stale
+            token = await self._ensure_oauth2_token()
+            current_auth = f"Bearer {token}"
+            if self._session and not self._session.closed:
+                existing_auth = self._session.headers.get("Authorization", "")
+                if existing_auth != current_auth:
+                    await self._session.close()
+                    needs_new = True
+
+        if needs_new:
             connector = aiohttp.TCPConnector(ssl=self.verify_ssl)
+            headers = await self._get_auth_headers()
             self._session = aiohttp.ClientSession(
-                headers=self._headers,
+                headers=headers,
                 timeout=self.timeout,
                 connector=connector,
             )
@@ -90,37 +156,22 @@ class ExtraHopClient:
             self._session = None
 
     async def __aenter__(self) -> "ExtraHopClient":
-        """Async context manager entry."""
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Async context manager exit."""
         await self.close()
 
     def _build_url(self, path: str) -> str:
         """Build full URL from path."""
         return urljoin(self.base_url + "/", path.lstrip("/"))
 
+    # ------------------------------------------------------------------
+    # Request handling
+    # ------------------------------------------------------------------
     async def _handle_response(self, response: aiohttp.ClientResponse) -> dict[str, Any] | list[Any]:
-        """
-        Handle API response and raise appropriate exceptions.
-
-        Args:
-            response: aiohttp response object
-
-        Returns:
-            Parsed JSON response
-
-        Raises:
-            ExtraHopAuthError: On 401/403
-            ExtraHopNotFoundError: On 404
-            ExtraHopRateLimitError: On 429
-            ExtraHopAPIError: On other errors
-        """
         if response.status == 200:
             return await response.json()
 
-        # Try to get error message from response
         try:
             error_data = await response.json()
             error_message = error_data.get("error_message", str(error_data))
@@ -128,8 +179,14 @@ class ExtraHopClient:
             error_message = await response.text() or f"HTTP {response.status}"
 
         if response.status == 401:
+            # Invalidate cached OAuth2 token on 401 so next retry gets a fresh one
+            if self._use_oauth2:
+                self._invalidate_oauth2_token()
+                if self._session and not self._session.closed:
+                    await self._session.close()
+                    self._session = None
             raise ExtraHopAuthError(
-                message="Invalid or revoked API key",
+                message=f"Authentication failed (401): {error_message}",
                 status_code=401,
                 response={"error": error_message},
             )
@@ -172,18 +229,6 @@ class ExtraHopClient:
         params: dict[str, Any] | None = None,
         json_data: dict[str, Any] | None = None,
     ) -> dict[str, Any] | list[Any]:
-        """
-        Make an API request with rate limiting and retries.
-
-        Args:
-            method: HTTP method (GET, POST, etc.)
-            path: API endpoint path
-            params: Query parameters
-            json_data: JSON body data
-
-        Returns:
-            Parsed JSON response
-        """
         async with self._rate_limiter:
             session = await self._get_session()
             url = self._build_url(path)
@@ -214,25 +259,6 @@ class ExtraHopClient:
         sort_field: str = "mod_time",
         sort_direction: str = "asc",
     ) -> list[dict[str, Any]]:
-        """
-        Search for security detections.
-
-        Args:
-            mod_time: Return detections modified after this timestamp (ms since epoch)
-            from_time: Beginning timestamp (ms since epoch)
-            until_time: Ending timestamp (ms since epoch)
-            categories: Filter by categories (e.g., ["sec", "sec.lateral"])
-            risk_score_min: Minimum risk score (0-99)
-            statuses: Filter by status (new, in_progress, closed, acknowledged)
-            types: Filter by detection type identifiers
-            limit: Maximum results (max 10000)
-            offset: Number of results to skip
-            sort_field: Sort field (mod_time, creation_time)
-            sort_direction: Sort direction (asc, desc)
-
-        Returns:
-            List of detection objects
-        """
         body: dict[str, Any] = {
             "limit": min(limit, 10000),
             "offset": offset,
@@ -241,28 +267,20 @@ class ExtraHopClient:
 
         if mod_time is not None:
             body["mod_time"] = mod_time
-
         if from_time is not None:
             body["from"] = from_time
-
         if until_time is not None:
             body["until"] = until_time
 
-        # Build filter object
         filter_obj: dict[str, Any] = {}
-
         if categories:
             filter_obj["categories"] = categories
-
         if risk_score_min is not None:
             filter_obj["risk_score_min"] = risk_score_min
-
         if statuses:
             filter_obj["status"] = statuses
-
         if types:
             filter_obj["types"] = types
-
         if filter_obj:
             body["filter"] = filter_obj
 
@@ -270,25 +288,10 @@ class ExtraHopClient:
         return result if isinstance(result, list) else []
 
     async def get_detection(self, detection_id: int) -> dict[str, Any]:
-        """
-        Get detailed information about a specific detection.
-
-        Args:
-            detection_id: Unique identifier for the detection
-
-        Returns:
-            Detection object
-        """
         result = await self._request("GET", f"/detections/{detection_id}")
         return result if isinstance(result, dict) else {}
 
     async def get_detection_formats(self) -> list[dict[str, Any]]:
-        """
-        Get all available detection types.
-
-        Returns:
-            List of detection format objects
-        """
         result = await self._request("GET", "/detections/formats")
         return result if isinstance(result, list) else []
 
@@ -301,22 +304,7 @@ class ExtraHopClient:
         ticket_id: str | None = None,
         ticket_url: str | None = None,
     ) -> dict[str, Any]:
-        """
-        Update a detection's status, assignee, or ticket information.
-
-        Args:
-            detection_id: Detection ID to update
-            status: New status (new, in_progress, closed, acknowledged)
-            assignee: Username to assign
-            resolution: Resolution (action_taken, no_action_taken)
-            ticket_id: External ticket ID
-            ticket_url: External ticket URL
-
-        Returns:
-            Updated detection object
-        """
         body: dict[str, Any] = {}
-
         if status is not None:
             body["status"] = status
         if assignee is not None:
@@ -340,18 +328,7 @@ class ExtraHopClient:
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[dict[str, Any]]:
-        """
-        Retrieve system administration and configuration audit events.
-
-        Args:
-            limit: Maximum number of entries to return
-            offset: Number of entries to skip
-
-        Returns:
-            List of audit log entries
-        """
         params: dict[str, Any] = {}
-
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -370,22 +347,10 @@ class ExtraHopClient:
         limit: int = 100,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        """
-        Search for devices matching specific criteria.
-
-        Args:
-            filter_obj: Device filter criteria
-            limit: Maximum number of devices to return
-            offset: Number of devices to skip
-
-        Returns:
-            List of device objects
-        """
         body: dict[str, Any] = {
             "limit": limit,
             "offset": offset,
         }
-
         if filter_obj:
             body["filter"] = filter_obj
 
@@ -393,15 +358,6 @@ class ExtraHopClient:
         return result if isinstance(result, list) else []
 
     async def get_device(self, device_id: int) -> dict[str, Any]:
-        """
-        Get detailed information about a specific device.
-
-        Args:
-            device_id: Unique identifier for the device
-
-        Returns:
-            Device object
-        """
         result = await self._request("GET", f"/devices/{device_id}")
         return result if isinstance(result, dict) else {}
 
@@ -418,30 +374,14 @@ class ExtraHopClient:
         limit: int = 1000,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        """
-        Search for structured flow and transaction records.
-
-        Args:
-            from_time: Beginning timestamp (ms since epoch)
-            until_time: Ending timestamp (ms since epoch)
-            types: Record types to search (e.g., ["~http", "~dns"])
-            filter_obj: Record filter criteria
-            limit: Maximum records to return
-            offset: Number of records to skip
-
-        Returns:
-            List of record objects
-        """
         body: dict[str, Any] = {
             "from": from_time,
             "until": until_time,
             "limit": limit,
             "offset": offset,
         }
-
         if types:
             body["types"] = types
-
         if filter_obj:
             body["filter"] = filter_obj
 
@@ -453,30 +393,15 @@ class ExtraHopClient:
     # =========================================================================
 
     async def get_alerts(self) -> list[dict[str, Any]]:
-        """
-        Get all configured alerts.
-
-        Returns:
-            List of alert configuration objects
-        """
         result = await self._request("GET", "/alerts")
         return result if isinstance(result, list) else []
 
     async def get_alert(self, alert_id: int) -> dict[str, Any]:
-        """
-        Get a specific alert configuration.
-
-        Args:
-            alert_id: Alert ID
-
-        Returns:
-            Alert configuration object
-        """
         result = await self._request("GET", f"/alerts/{alert_id}")
         return result if isinstance(result, dict) else {}
 
     # =========================================================================
-    # METRICS API (Bonus - useful for enrichment)
+    # METRICS API
     # =========================================================================
 
     async def get_metrics(
@@ -489,21 +414,6 @@ class ExtraHopClient:
         object_type: str,
         object_ids: list[int],
     ) -> dict[str, Any]:
-        """
-        Query metrics for devices or applications.
-
-        Args:
-            cycle: Time granularity (30sec, 5min, 1hr, 24hr)
-            from_time: Start timestamp (ms since epoch)
-            until_time: End timestamp (ms since epoch)
-            metric_category: Category of metrics
-            metric_specs: List of metric specifications
-            object_type: Type of object (device, application)
-            object_ids: List of object IDs
-
-        Returns:
-            Metrics data
-        """
         body: dict[str, Any] = {
             "cycle": cycle,
             "from": from_time,
@@ -522,14 +432,9 @@ class ExtraHopClient:
     # =========================================================================
 
     async def test_connection(self) -> bool:
-        """
-        Test API connectivity and authentication.
+        """Test API connectivity and authentication.
 
-        Returns:
-            True if connection successful
-
-        Raises:
-            Exception with details on failure (for logging by the connector)
+        Raises on failure so the connector can log the exact error.
         """
         await self.get_detection_formats()
         return True
@@ -542,19 +447,6 @@ class ExtraHopClient:
         statuses: list[str] | None = None,
         batch_size: int = 1000,
     ) -> list[dict[str, Any]]:
-        """
-        Fetch all detections with automatic pagination.
-
-        Args:
-            mod_time: Return detections modified after this timestamp
-            categories: Filter by categories
-            risk_score_min: Minimum risk score
-            statuses: Filter by status
-            batch_size: Number of detections per request
-
-        Yields:
-            Detection objects
-        """
         all_detections: list[dict[str, Any]] = []
         offset = 0
 
@@ -574,7 +466,6 @@ class ExtraHopClient:
             all_detections.extend(batch)
             offset += len(batch)
 
-            # If we got less than batch_size, we've reached the end
             if len(batch) < batch_size:
                 break
 

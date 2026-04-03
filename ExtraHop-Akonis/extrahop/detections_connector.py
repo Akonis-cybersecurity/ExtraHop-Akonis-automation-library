@@ -112,10 +112,13 @@ class ExtraHopDetectionsConnector(AsyncConnector):
     def client(self) -> ExtraHopClient:
         """Get or create HTTP client."""
         if self._client is None:
+            cfg = self.module.configuration
             self._client = ExtraHopClient(
-                hostname=self.module.configuration.hostname,
-                api_key=self.module.configuration.api_key,
-                verify_ssl=self.module.configuration.verify_ssl,
+                hostname=cfg.hostname,
+                api_key=cfg.api_key,
+                client_id=cfg.client_id,
+                client_secret=cfg.client_secret,
+                verify_ssl=cfg.verify_ssl,
             )
         return self._client
 
@@ -345,13 +348,20 @@ class ExtraHopDetectionsConnector(AsyncConnector):
         """Async main loop: fetch batches, serialize raw events, push to intake."""
         self.log(message="Starting ExtraHop Detections Connector", level="info")
 
+        # Log auth mode
+        auth_mode = "OAuth2" if self.module.configuration.use_oauth2 else "API key"
+        self.log(
+            message=f"Auth mode: {auth_mode}, Hostname: {self.module.configuration.hostname}",
+            level="info",
+        )
+
         # Test connection
         try:
             await self.client.test_connection()
             self.log(message="Successfully connected to ExtraHop API", level="info")
         except ExtraHopAuthError as e:
             self.log(
-                message=f"Authentication failed: {e} - Check API key in module configuration",
+                message=f"Authentication failed ({auth_mode}): {e} - Check credentials in module configuration",
                 level="error",
             )
             return
