@@ -106,33 +106,28 @@ class ExtraHopDetectionsConnector(AsyncConnector):
         )
         default_ms = int(default_start.timestamp() * 1000)
 
-        # Check if reset was requested
+        # Check if reset was requested — always reset on every poll while True
         if self.configuration.reset_cursor:
+            self.log(
+                message=(
+                    f"reset_cursor=True: ignoring saved checkpoint, "
+                    f"restarting from {self.configuration.historical_days} days ago "
+                    f"(start={default_start.isoformat()}, mod_time={default_ms})"
+                ),
+                level="info",
+            )
             with self.context_store as c:
-                if not c.get("reset_cursor_done"):
-                    self.log(
-                        message=(
-                            f"reset_cursor=True: ignoring saved checkpoint, "
-                            f"restarting from {self.configuration.historical_days} days ago"
-                        ),
-                        level="info",
-                    )
-                    c["last_detection_mod_time"] = None
-                    c["last_audit_time"] = None
-                    c["reset_cursor_done"] = True
+                c["last_detection_mod_time"] = None
+                c["last_audit_time"] = None
 
-                    # Clear dedup cache so historical events are not skipped
-                    with self.event_cache_store as s:
-                        for k in list(s.keys()):
-                            del s[k]
+            # Clear dedup cache so historical events are not skipped
+            with self.event_cache_store as s:
+                for k in list(s.keys()):
+                    del s[k]
 
-                    return default_ms
+            return default_ms
 
-        # reset_cursor is False: clear the done flag so next True triggers a new reset
         with self.context_store as c:
-            if c.get("reset_cursor_done"):
-                del c["reset_cursor_done"]
-
             val = c.get("last_detection_mod_time")
             if val is not None:
                 try:
