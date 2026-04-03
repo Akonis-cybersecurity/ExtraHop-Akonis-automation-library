@@ -36,6 +36,7 @@ class ExtraHopDetectionsConnectorConfiguration(DefaultConnectorConfiguration):
     historical_days: int = 7
     batch_size: int = 1000
     include_audit_logs: bool = False
+    reset_cursor: bool = False
 
 
 class ExtraHopDetectionsConnector(AsyncConnector):
@@ -95,13 +96,43 @@ class ExtraHopDetectionsConnector(AsyncConnector):
     # Checkpoint management (PersistentJSON, like Anozrway)
     # ------------------------------------------------------------------
     def last_checkpoint(self) -> int:
-        """Return last mod_time checkpoint; default = now - historical_days (epoch ms)."""
+        """Return last mod_time checkpoint; default = now - historical_days (epoch ms).
+
+        If reset_cursor is True, ignores the saved checkpoint, recalculates from
+        historical_days, clears the dedup cache, and marks the reset as done.
+        """
         default_start = datetime.now(timezone.utc) - timedelta(
             days=int(self.configuration.historical_days)
         )
         default_ms = int(default_start.timestamp() * 1000)
 
+        # Check if reset was requested
+        if self.configuration.reset_cursor:
+            with self.context_store as c:
+                if not c.get("reset_cursor_done"):
+                    self.log(
+                        message=(
+                            f"reset_cursor=True: ignoring saved checkpoint, "
+                            f"restarting from {self.configuration.historical_days} days ago"
+                        ),
+                        level="info",
+                    )
+                    c["last_detection_mod_time"] = None
+                    c["last_audit_time"] = None
+                    c["reset_cursor_done"] = True
+
+                    # Clear dedup cache so historical events are not skipped
+                    with self.event_cache_store as s:
+                        for k in list(s.keys()):
+                            del s[k]
+
+                    return default_ms
+
+        # reset_cursor is False: clear the done flag so next True triggers a new reset
         with self.context_store as c:
+            if c.get("reset_cursor_done"):
+                del c["reset_cursor_done"]
+
             val = c.get("last_detection_mod_time")
             if val is not None:
                 try:

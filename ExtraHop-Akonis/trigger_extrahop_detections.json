@@ -100,6 +100,12 @@
         "title": "Include Audit Logs",
         "description": "Also collect audit log events",
         "default": false
+      },
+      "reset_cursor": {
+        "type": "boolean",
+        "title": "Reset Cursor",
+        "description": "Reset the pagination cursor to re-fetch historical detections (from historical_days ago). Automatically disarms after the first fetch.",
+        "default": false
       }
     },
     "required": ["intake_key"]
