@@ -12,7 +12,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import orjson
-from pydantic import Field
 from sekoia_automation.aio.connector import AsyncConnector
 from sekoia_automation.connector import DefaultConnectorConfiguration
 from sekoia_automation.storage import PersistentJSON
@@ -30,49 +29,13 @@ from extrahop.metrics import METRICS
 class ExtraHopDetectionsConnectorConfiguration(DefaultConnectorConfiguration):
     """Configuration for ExtraHop Detections Connector."""
 
-    detection_categories: list[str] = Field(
-        default=[],
-        description="Detection categories to collect (empty for all). "
-        "Examples: sec, sec.attack, sec.lateral, sec.ransomware, perf",
-    )
-
-    min_risk_score: int = Field(
-        default=0,
-        ge=0,
-        le=99,
-        description="Minimum risk score for detections (0-99)",
-    )
-
-    detection_statuses: list[str] = Field(
-        default=["new", "in_progress", "acknowledged"],
-        description="Detection statuses to collect",
-    )
-
-    polling_frequency_minutes: int = Field(
-        default=5,
-        ge=1,
-        le=60,
-        description="Minutes between each poll (1-60)",
-    )
-
-    historical_days: int = Field(
-        default=7,
-        ge=1,
-        le=30,
-        description="Days of historical data to fetch on first run",
-    )
-
-    batch_size: int = Field(
-        default=1000,
-        ge=100,
-        le=10000,
-        description="Number of detections to fetch per API request",
-    )
-
-    include_audit_logs: bool = Field(
-        default=False,
-        description="Also collect audit log events",
-    )
+    detection_categories: list = []
+    min_risk_score: int = 0
+    detection_statuses: list = ["new", "in_progress", "acknowledged"]
+    polling_frequency_minutes: int = 5
+    historical_days: int = 7
+    batch_size: int = 1000
+    include_audit_logs: bool = False
 
 
 class ExtraHopDetectionsConnector(AsyncConnector):
