@@ -172,6 +172,12 @@ class ExtraHopClient:
         if response.status == 200:
             return await response.json()
 
+        if response.status in (201, 204):
+            try:
+                return await response.json()
+            except Exception:
+                return {}
+
         try:
             error_data = await response.json()
             error_message = error_data.get("error_message", str(error_data))
