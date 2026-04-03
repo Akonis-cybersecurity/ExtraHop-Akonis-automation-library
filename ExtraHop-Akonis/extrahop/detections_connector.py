@@ -206,6 +206,30 @@ class ExtraHopDetectionsConnector(AsyncConnector):
             return True
 
     # ------------------------------------------------------------------
+    # Timestamp normalization (epoch ms → ISO 8601)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _epoch_ms_to_iso(epoch_ms: Any) -> Optional[str]:
+        """Convert epoch milliseconds to ISO 8601 UTC string."""
+        if epoch_ms is None:
+            return None
+        try:
+            ts = int(epoch_ms) / 1000.0
+            return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        except (ValueError, TypeError, OSError):
+            return None
+
+    @classmethod
+    def _normalize_timestamps(cls, event: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert all epoch ms fields to ISO 8601 in-place for parser compatibility."""
+        for field in ("start_time", "end_time", "update_time", "mod_time", "create_time", "occur_time"):
+            if field in event and event[field] is not None:
+                iso = cls._epoch_ms_to_iso(event[field])
+                if iso:
+                    event[field] = iso
+        return event
+
+    # ------------------------------------------------------------------
     # Fetch & collect (yields raw event batches, like Anozrway)
     # ------------------------------------------------------------------
     async def fetch_events(self) -> AsyncGenerator[List[Dict[str, Any]], None]:
@@ -263,10 +287,13 @@ class ExtraHopDetectionsConnector(AsyncConnector):
                 if not self._is_new_event(key):
                     continue
 
-                # Track max mod_time for checkpoint
+                # Track max mod_time for checkpoint (before normalization)
                 det_mod_time = detection.get("mod_time", 0)
-                if det_mod_time > max_mod_time:
+                if isinstance(det_mod_time, int) and det_mod_time > max_mod_time:
                     max_mod_time = det_mod_time
+
+                # Normalize epoch ms timestamps to ISO 8601
+                detection = self._normalize_timestamps(dict(detection))
 
                 # Update metrics
                 for category in detection.get("categories", []):
@@ -306,7 +333,7 @@ class ExtraHopDetectionsConnector(AsyncConnector):
                     level="info",
                 )
                 if audit_logs:
-                    yield audit_logs
+                    yield [self._normalize_timestamps(dict(ev)) for ev in audit_logs]
             except ExtraHopAPIError as e:
                 self.log(message=f"Failed to fetch audit logs: {e}", level="warning")
 

@@ -28,20 +28,16 @@ stages:
 
   set_timestamp:
     actions:
-      # Detection: use start_time (epoch ms)
+      # Detection: use start_time (already ISO 8601 from connector)
       - set:
-          "@timestamp": >-
-            {%- set ts_ms = parsed_event.message.start_time -%}
-            {{ (ts_ms / 1000) | int | timestamp_utc }}
+          "@timestamp": "{{ parsed_event.message.start_time }}"
         filter: >-
           {{ parsed_event.message.start_time is defined and
              parsed_event.message.start_time is not none }}
 
       # Detection fallback: use mod_time
       - set:
-          "@timestamp": >-
-            {%- set ts_ms = parsed_event.message.mod_time -%}
-            {{ (ts_ms / 1000) | int | timestamp_utc }}
+          "@timestamp": "{{ parsed_event.message.mod_time }}"
         filter: >-
           {{ final['@timestamp'] is not defined and
              parsed_event.message.mod_time is defined and
@@ -49,9 +45,7 @@ stages:
 
       # Audit log: use occur_time
       - set:
-          "@timestamp": >-
-            {%- set ts_ms = parsed_event.message.occur_time -%}
-            {{ (ts_ms / 1000) | int | timestamp_utc }}
+          "@timestamp": "{{ parsed_event.message.occur_time }}"
         filter: >-
           {{ final['@timestamp'] is not defined and
              parsed_event.message.occur_time is defined and
@@ -175,53 +169,79 @@ stages:
 
   set_threat:
     actions:
+      # mitre_tactics is a list of objects: [{"id": "TA0006", "name": "...", "url": "..."}]
       - set:
-          threat.tactic.id: "{{ parsed_event.message.mitre_tactics }}"
+          threat.tactic.id: >-
+            {%- set ids = [] -%}
+            {%- for t in parsed_event.message.mitre_tactics -%}
+              {%- if t.id is defined -%}{%- set _ = ids.append(t.id) -%}{%- endif -%}
+            {%- endfor -%}
+            {{ ids }}
+          threat.tactic.name: >-
+            {%- set names = [] -%}
+            {%- for t in parsed_event.message.mitre_tactics -%}
+              {%- if t.name is defined -%}{%- set _ = names.append(t.name) -%}{%- endif -%}
+            {%- endfor -%}
+            {{ names }}
         filter: >-
           {{ parsed_event.message.mitre_tactics is defined and
              parsed_event.message.mitre_tactics | length > 0 }}
 
+      # mitre_techniques is a list of objects: [{"id": "T1110", "name": "...", "url": "..."}]
       - set:
-          threat.technique.id: "{{ parsed_event.message.mitre_techniques }}"
+          threat.technique.id: >-
+            {%- set ids = [] -%}
+            {%- for t in parsed_event.message.mitre_techniques -%}
+              {%- if t.id is defined -%}{%- set _ = ids.append(t.id) -%}{%- endif -%}
+            {%- endfor -%}
+            {{ ids }}
+          threat.technique.name: >-
+            {%- set names = [] -%}
+            {%- for t in parsed_event.message.mitre_techniques -%}
+              {%- if t.name is defined -%}{%- set _ = names.append(t.name) -%}{%- endif -%}
+            {%- endfor -%}
+            {{ names }}
         filter: >-
           {{ parsed_event.message.mitre_techniques is defined and
              parsed_event.message.mitre_techniques | length > 0 }}
 
   set_network_participants:
     actions:
-      # Source (offender) - first participant with role=offender
+      # Source (offender) - extract IP from object_value when object_type=ipaddr
       - set:
           source.ip: >-
             {%- for p in parsed_event.message.participants -%}
-              {%- if p.role == 'offender' and p.ipaddr is defined -%}{{ p.ipaddr }}{%- endif -%}
+              {%- if p.role == 'offender' and p.object_type == 'ipaddr' and p.object_value is defined -%}{{ p.object_value }}{%- endif -%}
             {%- endfor -%}
         filter: >-
           {{ parsed_event.message.participants is defined and
              parsed_event.message.participants | length > 0 }}
 
-      - set:
-          source.domain: >-
-            {%- for p in parsed_event.message.participants -%}
-              {%- if p.role == 'offender' and p.hostname is defined -%}{{ p.hostname }}{%- endif -%}
-            {%- endfor -%}
-        filter: >-
-          {{ parsed_event.message.participants is defined and
-             parsed_event.message.participants | length > 0 }}
-
-      # Destination (victim) - first participant with role=victim
+      # Destination (victim) - extract IP from object_value when object_type=ipaddr
       - set:
           destination.ip: >-
             {%- for p in parsed_event.message.participants -%}
-              {%- if p.role == 'victim' and p.ipaddr is defined -%}{{ p.ipaddr }}{%- endif -%}
+              {%- if p.role == 'victim' and p.object_type == 'ipaddr' and p.object_value is defined -%}{{ p.object_value }}{%- endif -%}
             {%- endfor -%}
         filter: >-
           {{ parsed_event.message.participants is defined and
              parsed_event.message.participants | length > 0 }}
 
+      # Offender endpoint (client/server)
+      - set:
+          source.domain: >-
+            {%- for p in parsed_event.message.participants -%}
+              {%- if p.role == 'offender' and p.endpoint is defined -%}{{ p.endpoint }}{%- endif -%}
+            {%- endfor -%}
+        filter: >-
+          {{ parsed_event.message.participants is defined and
+             parsed_event.message.participants | length > 0 }}
+
+      # Victim endpoint
       - set:
           destination.domain: >-
             {%- for p in parsed_event.message.participants -%}
-              {%- if p.role == 'victim' and p.hostname is defined -%}{{ p.hostname }}{%- endif -%}
+              {%- if p.role == 'victim' and p.endpoint is defined -%}{{ p.endpoint }}{%- endif -%}
             {%- endfor -%}
         filter: >-
           {{ parsed_event.message.participants is defined and
@@ -233,24 +253,11 @@ stages:
           related.ip: >-
             {%- set ips = [] -%}
             {%- for p in parsed_event.message.participants -%}
-              {%- if p.ipaddr is defined and p.ipaddr is not none -%}
-                {%- set _ = ips.append(p.ipaddr) -%}
+              {%- if p.object_type == 'ipaddr' and p.object_value is defined and p.object_value is not none -%}
+                {%- set _ = ips.append(p.object_value) -%}
               {%- endif -%}
             {%- endfor -%}
             {{ ips }}
-        filter: >-
-          {{ parsed_event.message.participants is defined and
-             parsed_event.message.participants | length > 0 }}
-
-      - set:
-          related.hosts: >-
-            {%- set hosts = [] -%}
-            {%- for p in parsed_event.message.participants -%}
-              {%- if p.hostname is defined and p.hostname is not none -%}
-                {%- set _ = hosts.append(p.hostname) -%}
-              {%- endif -%}
-            {%- endfor -%}
-            {{ hosts }}
         filter: >-
           {{ parsed_event.message.participants is defined and
              parsed_event.message.participants | length > 0 }}

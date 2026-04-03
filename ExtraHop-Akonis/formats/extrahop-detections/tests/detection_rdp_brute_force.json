@@ -1,0 +1,60 @@
+{
+  "input": {
+    "message": "{\"id\":8589935233,\"start_time\":\"2026-04-03T10:04:00.000000Z\",\"update_time\":\"2026-04-03T10:05:00.000000Z\",\"end_time\":\"2026-04-03T10:10:50.000000Z\",\"title\":\"RDP Brute Force\",\"description\":\"[VMware 37A983](https://ignitionfralab.cloud.extrahop.com#/metrics/devices/0ef46492f5c948f4ac6273a7c5274dba.00505637a9830000/overview) received an unusually high number of short Remote Desktop Protocol (RDP) sessions, which could be caused by planned maintenance or could indicate a brute force attack.\",\"risk_score\":60,\"type\":\"rdp_brute_force\",\"recommended\":true,\"recommended_factors\":[\"critical_asset\",\"top_offender\"],\"categories\":[\"sec.exploit\",\"sec\",\"sec.attack\"],\"properties\":{},\"participants\":[{\"role\":\"offender\",\"scanner_service\":null,\"endpoint\":\"client\",\"external\":true,\"object_id\":8589934608,\"object_type\":\"ipaddr\",\"object_value\":\"119.192.80.227\",\"username\":null,\"id\":2098},{\"role\":\"victim\",\"scanner_service\":null,\"endpoint\":\"server\",\"external\":false,\"object_id\":8589934597,\"object_type\":\"device\",\"username\":null,\"id\":1124}],\"ticket_id\":null,\"assignee\":null,\"status\":null,\"resolution\":null,\"mitre_tactics\":[{\"id\":\"TA0006\",\"name\":\"Credential Access\",\"url\":\"https://attack.mitre.org/tactics/TA0006\"}],\"mitre_techniques\":[{\"id\":\"T1110\",\"name\":\"Brute Force\",\"url\":\"https://attack.mitre.org/techniques/T1110\",\"legacy_ids\":[\"T1110\"]}],\"appliance_id\":2,\"is_user_created\":false,\"mod_time\":\"2026-04-03T10:12:38.109000Z\",\"create_time\":\"2026-04-03T10:04:59.548300Z\",\"url\":\"https://ignitionfralab.cloud.extrahop.com/extrahop/?hashfragment=/detections/detail/8589935233\"}",
+    "sekoiaio": {
+      "intake": {
+        "dialect": "ExtraHop Detections",
+        "dialect_uuid": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9a"
+      }
+    }
+  },
+  "expected": {
+    "event": {
+      "kind": "alert",
+      "type": ["info"],
+      "category": ["intrusion_detection", "network"],
+      "module": "extrahop",
+      "dataset": "extrahop.detections",
+      "provider": "extrahop",
+      "severity": 3,
+      "reason": "RDP Brute Force"
+    },
+    "@timestamp": "2026-04-03T10:04:00.000000Z",
+    "observer": {
+      "vendor": "ExtraHop",
+      "product": "Reveal(x)",
+      "type": "ids"
+    },
+    "extrahop": {
+      "detection": {
+        "id": 8589935233,
+        "title": "RDP Brute Force",
+        "type": "rdp_brute_force",
+        "categories": ["sec.exploit", "sec", "sec.attack"],
+        "risk_score": 60,
+        "start_time": "2026-04-03T10:04:00.000000Z",
+        "end_time": "2026-04-03T10:10:50.000000Z"
+      }
+    },
+    "source": {
+      "ip": "119.192.80.227",
+      "domain": "client"
+    },
+    "destination": {
+      "domain": "server"
+    },
+    "threat": {
+      "tactic": {
+        "id": ["TA0006"],
+        "name": ["Credential Access"]
+      },
+      "technique": {
+        "id": ["T1110"],
+        "name": ["Brute Force"]
+      }
+    },
+    "related": {
+      "ip": ["119.192.80.227"]
+    }
+  }
+}
