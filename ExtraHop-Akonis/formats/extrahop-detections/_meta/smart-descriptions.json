@@ -1,0 +1,29 @@
+[
+  {
+    "value": "{extrahop.detection.title} (risk: {extrahop.detection.risk_score})",
+    "conditions": [
+      { "field": "extrahop.detection.title" },
+      { "field": "extrahop.detection.risk_score" }
+    ]
+  },
+  {
+    "value": "Detection {extrahop.detection.id}: {extrahop.detection.type}",
+    "conditions": [
+      { "field": "extrahop.detection.id" },
+      { "field": "extrahop.detection.type" }
+    ]
+  },
+  {
+    "value": "MITRE tactic: {threat.tactic.id}",
+    "conditions": [
+      { "field": "threat.tactic.id" }
+    ]
+  },
+  {
+    "value": "Audit event by {user.name}",
+    "conditions": [
+      { "field": "user.name" },
+      { "field": "event.dataset", "value": "extrahop.auditlog" }
+    ]
+  }
+]

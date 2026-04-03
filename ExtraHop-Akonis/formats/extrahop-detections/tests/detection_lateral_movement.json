@@ -1,0 +1,59 @@
+{
+  "input": {
+    "message": "{\"event\":{\"kind\":\"alert\",\"type\":[\"info\"],\"category\":[\"intrusion_detection\",\"network\"],\"module\":\"extrahop\",\"dataset\":\"extrahop.detections\",\"severity\":3,\"severity_label\":\"high\"},\"observer\":{\"vendor\":\"ExtraHop\",\"product\":\"Reveal(x)\",\"type\":\"ids\"},\"extrahop\":{\"detection\":{\"id\":12345,\"title\":\"Lateral Movement - SMB/CIFS Activity\",\"description\":\"Suspicious SMB activity detected between internal hosts\",\"type\":\"lateral_movement\",\"categories\":[\"sec.lateral\"],\"risk_score\":65,\"status\":\"new\",\"mod_time\":1710000000000,\"start_time\":1709999000000,\"end_time\":1710000000000,\"update_time\":1710000000000,\"mitre_tactics\":[\"TA0008\"],\"mitre_techniques\":[\"T1021.002\"],\"participants\":[{\"role\":\"offender\",\"ipaddr\":\"10.0.1.50\",\"hostname\":\"workstation-A\",\"macaddr\":\"00:1A:2B:3C:4D:5E\"},{\"role\":\"victim\",\"ipaddr\":\"10.0.2.100\",\"hostname\":\"fileserver-01\",\"macaddr\":\"00:5E:4D:3C:2B:1A\"}]}},\"source\":{\"ip\":\"10.0.1.50\",\"hostname\":\"workstation-A\",\"mac\":\"00:1A:2B:3C:4D:5E\"},\"destination\":{\"ip\":\"10.0.2.100\",\"hostname\":\"fileserver-01\",\"mac\":\"00:5E:4D:3C:2B:1A\"},\"threat\":{\"tactic\":{\"id\":[\"TA0008\"]},\"technique\":{\"id\":[\"T1021.002\"]}}}",
+    "sekoiaio": {
+      "intake": {
+        "dialect": "ExtraHop Detections",
+        "dialect_uuid": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9a"
+      }
+    }
+  },
+  "expected": {
+    "event": {
+      "kind": "alert",
+      "type": ["info"],
+      "category": ["intrusion_detection", "network"],
+      "module": "extrahop",
+      "dataset": "extrahop.detections",
+      "provider": "extrahop",
+      "severity": 3,
+      "severity_label": "high",
+      "reason": "Lateral Movement - SMB/CIFS Activity"
+    },
+    "observer": {
+      "vendor": "ExtraHop",
+      "product": "Reveal(x)",
+      "type": "ids"
+    },
+    "extrahop": {
+      "detection": {
+        "id": 12345,
+        "title": "Lateral Movement - SMB/CIFS Activity",
+        "type": "lateral_movement",
+        "categories": ["sec.lateral"],
+        "risk_score": 65,
+        "status": "new"
+      }
+    },
+    "source": {
+      "ip": "10.0.1.50",
+      "domain": "workstation-A"
+    },
+    "destination": {
+      "ip": "10.0.2.100",
+      "domain": "fileserver-01"
+    },
+    "threat": {
+      "tactic": {
+        "id": ["TA0008"]
+      },
+      "technique": {
+        "id": ["T1021.002"]
+      }
+    },
+    "related": {
+      "ip": ["10.0.1.50", "10.0.2.100"],
+      "hosts": ["workstation-A", "fileserver-01"]
+    }
+  }
+}

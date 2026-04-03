@@ -1,0 +1,91 @@
+# ExtraHop detection fields
+extrahop.detection.id:
+  description: Unique identifier of the detection.
+  name: extrahop.detection.id
+  type: long
+
+extrahop.detection.title:
+  description: Title of the detection.
+  name: extrahop.detection.title
+  type: keyword
+
+extrahop.detection.description:
+  description: Detailed description of the detection.
+  name: extrahop.detection.description
+  type: text
+
+extrahop.detection.type:
+  description: Detection type identifier.
+  name: extrahop.detection.type
+  type: keyword
+
+extrahop.detection.categories:
+  description: Detection categories (e.g., sec.attack, sec.lateral).
+  name: extrahop.detection.categories
+  type: keyword
+
+extrahop.detection.risk_score:
+  description: Risk score of the detection (0-99).
+  name: extrahop.detection.risk_score
+  type: long
+
+extrahop.detection.status:
+  description: Status of the detection (new, in_progress, closed, acknowledged).
+  name: extrahop.detection.status
+  type: keyword
+
+extrahop.detection.resolution:
+  description: Resolution status of the detection.
+  name: extrahop.detection.resolution
+  type: keyword
+
+extrahop.detection.mod_time:
+  description: Last modification time of the detection (epoch ms).
+  name: extrahop.detection.mod_time
+  type: long
+
+extrahop.detection.start_time:
+  description: Start time of the detection (epoch ms).
+  name: extrahop.detection.start_time
+  type: long
+
+extrahop.detection.end_time:
+  description: End time of the detection (epoch ms).
+  name: extrahop.detection.end_time
+  type: long
+
+extrahop.detection.update_time:
+  description: Update time of the detection (epoch ms).
+  name: extrahop.detection.update_time
+  type: long
+
+extrahop.detection.mitre_tactics:
+  description: MITRE ATT&CK tactic IDs.
+  name: extrahop.detection.mitre_tactics
+  type: keyword
+
+extrahop.detection.mitre_techniques:
+  description: MITRE ATT&CK technique IDs.
+  name: extrahop.detection.mitre_techniques
+  type: keyword
+
+extrahop.detection.participants:
+  description: Array of participant objects (offenders and victims).
+  name: extrahop.detection.participants
+  type: object
+
+# Audit log fields
+extrahop.audit.id:
+  description: Unique identifier of the audit log entry.
+  name: extrahop.audit.id
+  type: long
+
+extrahop.audit.occur_time:
+  description: Time the audit event occurred (epoch ms).
+  name: extrahop.audit.occur_time
+  type: long
+
+extrahop.audit.body:
+  description: Audit event body containing details.
+  name: extrahop.audit.body
+  type: object
