@@ -1,6 +1,6 @@
 {
   "input": {
-    "message": "{\"event\":{\"kind\":\"event\",\"type\":[\"info\"],\"category\":[\"configuration\"],\"module\":\"extrahop\",\"dataset\":\"extrahop.auditlog\"},\"observer\":{\"vendor\":\"ExtraHop\",\"product\":\"Reveal(x)\",\"type\":\"ids\"},\"extrahop\":{\"audit\":{\"id\":99001,\"occur_time\":1710001000000,\"body\":{\"user\":\"admin@company.com\",\"action\":\"login\",\"detail\":\"User logged in from 192.168.1.10\"}}},\"user\":{\"name\":\"admin@company.com\"}}",
+    "message": "{\"id\":99001,\"occur_time\":1710001000000,\"body\":{\"user\":\"admin@company.com\",\"action\":\"login\",\"detail\":\"User logged in from 192.168.1.10\"}}",
     "sekoiaio": {
       "intake": {
         "dialect": "ExtraHop Detections",

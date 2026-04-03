@@ -12,7 +12,6 @@ pipeline:
   - name: set_observer
   - name: set_timestamp
   - name: map_detection_fields
-  - name: map_audit_fields
   - name: ecs_categorization
   - name: set_threat
   - name: set_network_participants
@@ -32,230 +31,229 @@ stages:
       # Detection: use start_time (epoch ms)
       - set:
           "@timestamp": >-
-            {%- set ts_ms = parsed_event.message.extrahop.detection.start_time -%}
+            {%- set ts_ms = parsed_event.message.start_time -%}
             {{ (ts_ms / 1000) | int | timestamp_utc }}
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.detection is defined and
-             parsed_event.message.extrahop.detection.start_time is defined and
-             parsed_event.message.extrahop.detection.start_time is not none }}
+          {{ parsed_event.message.start_time is defined and
+             parsed_event.message.start_time is not none }}
 
       # Detection fallback: use mod_time
       - set:
           "@timestamp": >-
-            {%- set ts_ms = parsed_event.message.extrahop.detection.mod_time -%}
+            {%- set ts_ms = parsed_event.message.mod_time -%}
             {{ (ts_ms / 1000) | int | timestamp_utc }}
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.detection is defined and
-             final['@timestamp'] is not defined and
-             parsed_event.message.extrahop.detection.mod_time is defined and
-             parsed_event.message.extrahop.detection.mod_time is not none }}
+          {{ final['@timestamp'] is not defined and
+             parsed_event.message.mod_time is defined and
+             parsed_event.message.mod_time is not none }}
 
-      # Audit: use occur_time
+      # Audit log: use occur_time
       - set:
           "@timestamp": >-
-            {%- set ts_ms = parsed_event.message.extrahop.audit.occur_time -%}
+            {%- set ts_ms = parsed_event.message.occur_time -%}
             {{ (ts_ms / 1000) | int | timestamp_utc }}
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.audit is defined and
-             parsed_event.message.extrahop.audit.occur_time is defined and
-             parsed_event.message.extrahop.audit.occur_time is not none }}
+          {{ final['@timestamp'] is not defined and
+             parsed_event.message.occur_time is defined and
+             parsed_event.message.occur_time is not none }}
 
   map_detection_fields:
     actions:
       - set:
-          extrahop.detection.id: "{{ parsed_event.message.extrahop.detection.id }}"
-          extrahop.detection.mod_time: "{{ parsed_event.message.extrahop.detection.mod_time }}"
+          extrahop.detection.id: "{{ parsed_event.message.id }}"
+          extrahop.detection.mod_time: "{{ parsed_event.message.mod_time }}"
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.detection is defined and
-             parsed_event.message.extrahop.detection.id is defined }}
+          {{ parsed_event.message.id is defined }}
 
       - set:
-          extrahop.detection.title: "{{ parsed_event.message.extrahop.detection.title }}"
+          extrahop.detection.title: "{{ parsed_event.message.title }}"
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.detection is defined and
-             parsed_event.message.extrahop.detection.title is defined }}
+          {{ parsed_event.message.title is defined }}
 
       - set:
-          extrahop.detection.description: "{{ parsed_event.message.extrahop.detection.description }}"
+          extrahop.detection.description: "{{ parsed_event.message.description }}"
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.detection is defined and
-             parsed_event.message.extrahop.detection.description is defined }}
+          {{ parsed_event.message.description is defined }}
 
       - set:
-          extrahop.detection.type: "{{ parsed_event.message.extrahop.detection.type }}"
+          extrahop.detection.type: "{{ parsed_event.message.type }}"
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.detection is defined and
-             parsed_event.message.extrahop.detection.type is defined }}
+          {{ parsed_event.message.type is defined }}
 
       - set:
-          extrahop.detection.categories: "{{ parsed_event.message.extrahop.detection.categories }}"
+          extrahop.detection.categories: "{{ parsed_event.message.categories }}"
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.detection is defined and
-             parsed_event.message.extrahop.detection.categories is defined }}
+          {{ parsed_event.message.categories is defined }}
 
       - set:
-          extrahop.detection.risk_score: "{{ parsed_event.message.extrahop.detection.risk_score }}"
+          extrahop.detection.risk_score: "{{ parsed_event.message.risk_score }}"
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.detection is defined and
-             parsed_event.message.extrahop.detection.risk_score is defined }}
+          {{ parsed_event.message.risk_score is defined }}
 
       - set:
-          extrahop.detection.status: "{{ parsed_event.message.extrahop.detection.status }}"
+          extrahop.detection.status: "{{ parsed_event.message.status }}"
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.detection is defined and
-             parsed_event.message.extrahop.detection.status is defined }}
+          {{ parsed_event.message.status is defined }}
 
       - set:
-          extrahop.detection.start_time: "{{ parsed_event.message.extrahop.detection.start_time }}"
-          extrahop.detection.end_time: "{{ parsed_event.message.extrahop.detection.end_time }}"
-          extrahop.detection.update_time: "{{ parsed_event.message.extrahop.detection.update_time }}"
+          extrahop.detection.start_time: "{{ parsed_event.message.start_time }}"
+          extrahop.detection.end_time: "{{ parsed_event.message.end_time }}"
+          extrahop.detection.update_time: "{{ parsed_event.message.update_time }}"
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.detection is defined and
-             parsed_event.message.extrahop.detection.start_time is defined }}
+          {{ parsed_event.message.start_time is defined }}
 
       - set:
-          extrahop.detection.mitre_tactics: "{{ parsed_event.message.extrahop.detection.mitre_tactics }}"
-          extrahop.detection.mitre_techniques: "{{ parsed_event.message.extrahop.detection.mitre_techniques }}"
+          extrahop.detection.mitre_tactics: "{{ parsed_event.message.mitre_tactics }}"
+          extrahop.detection.mitre_techniques: "{{ parsed_event.message.mitre_techniques }}"
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.detection is defined and
-             parsed_event.message.extrahop.detection.mitre_tactics is defined }}
+          {{ parsed_event.message.mitre_tactics is defined }}
 
       - set:
-          extrahop.detection.participants: "{{ parsed_event.message.extrahop.detection.participants }}"
+          extrahop.detection.participants: "{{ parsed_event.message.participants }}"
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.detection is defined and
-             parsed_event.message.extrahop.detection.participants is defined }}
+          {{ parsed_event.message.participants is defined }}
 
-  map_audit_fields:
-    actions:
+      # Audit log fields
       - set:
-          extrahop.audit: "{{ parsed_event.message.extrahop.audit }}"
+          extrahop.audit.id: "{{ parsed_event.message.id }}"
+          extrahop.audit.occur_time: "{{ parsed_event.message.occur_time }}"
+          extrahop.audit.body: "{{ parsed_event.message.body }}"
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.audit is defined }}
+          {{ parsed_event.message.occur_time is defined and
+             parsed_event.message.body is defined }}
 
       - set:
-          user.name: "{{ parsed_event.message.extrahop.audit.body.user }}"
+          user.name: "{{ parsed_event.message.body.user }}"
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.audit is defined and
-             parsed_event.message.extrahop.audit.body is defined and
-             parsed_event.message.extrahop.audit.body.user is defined }}
+          {{ parsed_event.message.body is defined and
+             parsed_event.message.body.user is defined }}
 
   ecs_categorization:
     actions:
-      # Detection events
+      # Detection events (have risk_score)
       - set:
           event.provider: "extrahop"
-          event.dataset: "{{ parsed_event.message.event.dataset }}"
-          event.kind: "{{ parsed_event.message.event.kind }}"
-          event.category: "{{ parsed_event.message.event.category }}"
-          event.type: "{{ parsed_event.message.event.type }}"
+          event.dataset: "extrahop.detections"
+          event.kind: "alert"
+          event.category: "{{ ['intrusion_detection', 'network'] }}"
+          event.type: "{{ ['info'] }}"
           event.module: "extrahop"
-        filter: "{{ parsed_event.message.event is defined }}"
+        filter: "{{ parsed_event.message.risk_score is defined }}"
 
       - set:
-          event.severity: "{{ parsed_event.message.event.severity }}"
-          event.severity_label: "{{ parsed_event.message.event.severity_label }}"
-        filter: >-
-          {{ parsed_event.message.event is defined and
-             parsed_event.message.event.severity is defined }}
+          event.reason: "{{ parsed_event.message.title }}"
+        filter: "{{ parsed_event.message.title is defined }}"
+
+      # Map risk score to severity
+      - set:
+          event.severity: 4
+        filter: "{{ parsed_event.message.risk_score is defined and parsed_event.message.risk_score >= 75 }}"
 
       - set:
-          event.reason: "{{ parsed_event.message.extrahop.detection.title }}"
+          event.severity: 3
+        filter: "{{ parsed_event.message.risk_score is defined and parsed_event.message.risk_score >= 50 and parsed_event.message.risk_score < 75 }}"
+
+      - set:
+          event.severity: 2
+        filter: "{{ parsed_event.message.risk_score is defined and parsed_event.message.risk_score >= 30 and parsed_event.message.risk_score < 50 }}"
+
+      - set:
+          event.severity: 1
+        filter: "{{ parsed_event.message.risk_score is defined and parsed_event.message.risk_score < 30 }}"
+
+      # Audit events (have body + occur_time)
+      - set:
+          event.provider: "extrahop"
+          event.dataset: "extrahop.auditlog"
+          event.kind: "event"
+          event.category: "{{ ['configuration'] }}"
+          event.type: "{{ ['info'] }}"
+          event.module: "extrahop"
         filter: >-
-          {{ parsed_event.message.extrahop is defined and
-             parsed_event.message.extrahop.detection is defined and
-             parsed_event.message.extrahop.detection.title is defined }}
+          {{ parsed_event.message.body is defined and
+             parsed_event.message.occur_time is defined }}
 
   set_threat:
     actions:
       - set:
-          threat.tactic.id: "{{ parsed_event.message.threat.tactic.id }}"
+          threat.tactic.id: "{{ parsed_event.message.mitre_tactics }}"
         filter: >-
-          {{ parsed_event.message.threat is defined and
-             parsed_event.message.threat.tactic is defined }}
+          {{ parsed_event.message.mitre_tactics is defined and
+             parsed_event.message.mitre_tactics | length > 0 }}
 
       - set:
-          threat.technique.id: "{{ parsed_event.message.threat.technique.id }}"
+          threat.technique.id: "{{ parsed_event.message.mitre_techniques }}"
         filter: >-
-          {{ parsed_event.message.threat is defined and
-             parsed_event.message.threat.technique is defined }}
+          {{ parsed_event.message.mitre_techniques is defined and
+             parsed_event.message.mitre_techniques | length > 0 }}
 
   set_network_participants:
     actions:
-      # Source (offender)
+      # Source (offender) - first participant with role=offender
       - set:
-          source.ip: "{{ parsed_event.message.source.ip }}"
+          source.ip: >-
+            {%- for p in parsed_event.message.participants -%}
+              {%- if p.role == 'offender' and p.ipaddr is defined -%}{{ p.ipaddr }}{%- endif -%}
+            {%- endfor -%}
         filter: >-
-          {{ parsed_event.message.source is defined and
-             parsed_event.message.source.ip is defined and
-             parsed_event.message.source.ip is not none }}
+          {{ parsed_event.message.participants is defined and
+             parsed_event.message.participants | length > 0 }}
 
       - set:
-          source.domain: "{{ parsed_event.message.source.hostname }}"
+          source.domain: >-
+            {%- for p in parsed_event.message.participants -%}
+              {%- if p.role == 'offender' and p.hostname is defined -%}{{ p.hostname }}{%- endif -%}
+            {%- endfor -%}
         filter: >-
-          {{ parsed_event.message.source is defined and
-             parsed_event.message.source.hostname is defined and
-             parsed_event.message.source.hostname is not none }}
+          {{ parsed_event.message.participants is defined and
+             parsed_event.message.participants | length > 0 }}
 
-      # Destination (victim)
+      # Destination (victim) - first participant with role=victim
       - set:
-          destination.ip: "{{ parsed_event.message.destination.ip }}"
+          destination.ip: >-
+            {%- for p in parsed_event.message.participants -%}
+              {%- if p.role == 'victim' and p.ipaddr is defined -%}{{ p.ipaddr }}{%- endif -%}
+            {%- endfor -%}
         filter: >-
-          {{ parsed_event.message.destination is defined and
-             parsed_event.message.destination.ip is defined and
-             parsed_event.message.destination.ip is not none }}
+          {{ parsed_event.message.participants is defined and
+             parsed_event.message.participants | length > 0 }}
 
       - set:
-          destination.domain: "{{ parsed_event.message.destination.hostname }}"
+          destination.domain: >-
+            {%- for p in parsed_event.message.participants -%}
+              {%- if p.role == 'victim' and p.hostname is defined -%}{{ p.hostname }}{%- endif -%}
+            {%- endfor -%}
         filter: >-
-          {{ parsed_event.message.destination is defined and
-             parsed_event.message.destination.hostname is defined and
-             parsed_event.message.destination.hostname is not none }}
+          {{ parsed_event.message.participants is defined and
+             parsed_event.message.participants | length > 0 }}
 
   set_related:
     actions:
       - set:
-          related.ip: "{{ (final.related.ip | default([])) + [parsed_event.message.source.ip] }}"
+          related.ip: >-
+            {%- set ips = [] -%}
+            {%- for p in parsed_event.message.participants -%}
+              {%- if p.ipaddr is defined and p.ipaddr is not none -%}
+                {%- set _ = ips.append(p.ipaddr) -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {{ ips }}
         filter: >-
-          {{ parsed_event.message.source is defined and
-             parsed_event.message.source.ip is defined and
-             parsed_event.message.source.ip is not none }}
+          {{ parsed_event.message.participants is defined and
+             parsed_event.message.participants | length > 0 }}
 
       - set:
-          related.ip: "{{ (final.related.ip | default([])) + [parsed_event.message.destination.ip] }}"
+          related.hosts: >-
+            {%- set hosts = [] -%}
+            {%- for p in parsed_event.message.participants -%}
+              {%- if p.hostname is defined and p.hostname is not none -%}
+                {%- set _ = hosts.append(p.hostname) -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {{ hosts }}
         filter: >-
-          {{ parsed_event.message.destination is defined and
-             parsed_event.message.destination.ip is defined and
-             parsed_event.message.destination.ip is not none }}
-
-      - set:
-          related.hosts: "{{ (final.related.hosts | default([])) + [parsed_event.message.source.hostname] }}"
-        filter: >-
-          {{ parsed_event.message.source is defined and
-             parsed_event.message.source.hostname is defined and
-             parsed_event.message.source.hostname is not none }}
-
-      - set:
-          related.hosts: "{{ (final.related.hosts | default([])) + [parsed_event.message.destination.hostname] }}"
-        filter: >-
-          {{ parsed_event.message.destination is defined and
-             parsed_event.message.destination.hostname is defined and
-             parsed_event.message.destination.hostname is not none }}
+          {{ parsed_event.message.participants is defined and
+             parsed_event.message.participants | length > 0 }}
 
       - set:
           related.user: "{{ (final.related.user | default([])) + [final.user.name] }}"
