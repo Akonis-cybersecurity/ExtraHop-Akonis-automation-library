@@ -84,7 +84,7 @@
         "title": "Historical Days",
         "description": "Days of historical data to fetch on first run",
         "minimum": 1,
-        "maximum": 30,
+        "maximum": 365,
         "default": 7
       },
       "batch_size": {
