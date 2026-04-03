@@ -347,12 +347,24 @@ class ExtraHopDetectionsConnector(AsyncConnector):
 
         # Test connection
         try:
-            if not await self.client.test_connection():
-                self.log(message="Failed to connect to ExtraHop API", level="error")
-                return
+            await self.client.test_connection()
             self.log(message="Successfully connected to ExtraHop API", level="info")
+        except ExtraHopAuthError as e:
+            self.log(
+                message=f"Authentication failed: {e} - Check API key in module configuration",
+                level="error",
+            )
+            return
         except Exception as e:
-            self.log(message=f"Connection test failed: {e}", level="error")
+            self.log(
+                message=(
+                    f"Failed to connect to ExtraHop API: {e} - "
+                    f"Hostname: {self.module.configuration.hostname}, "
+                    f"Base URL: {self.client.base_url}, "
+                    f"SSL verify: {self.module.configuration.verify_ssl}"
+                ),
+                level="error",
+            )
             return
 
         intake_key = self.configuration.intake_key

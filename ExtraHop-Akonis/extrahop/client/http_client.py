@@ -527,14 +527,12 @@ class ExtraHopClient:
 
         Returns:
             True if connection successful
+
+        Raises:
+            Exception with details on failure (for logging by the connector)
         """
-        try:
-            await self.get_detection_formats()
-            return True
-        except ExtraHopAuthError:
-            return False
-        except Exception:
-            return False
+        await self.get_detection_formats()
+        return True
 
     async def fetch_all_detections(
         self,
