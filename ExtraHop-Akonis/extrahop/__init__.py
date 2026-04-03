@@ -18,7 +18,6 @@ class ExtraHopModuleConfiguration(BaseModel):
     api_key: str = Field(
         default="",
         description="ExtraHop REST API key (on-prem). Leave empty when using OAuth2.",
-        json_schema_extra={"secret": True},
     )
     client_id: str = Field(
         default="",
@@ -27,7 +26,6 @@ class ExtraHopModuleConfiguration(BaseModel):
     client_secret: str = Field(
         default="",
         description="OAuth2 Client Secret for RevealX 360 cloud authentication",
-        json_schema_extra={"secret": True},
     )
     verify_ssl: bool = Field(
         default=True,
