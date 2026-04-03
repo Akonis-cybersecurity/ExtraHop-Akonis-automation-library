@@ -110,9 +110,9 @@ class ExtraHopDetectionsConnector(AsyncConnector):
         if self.configuration.reset_cursor:
             self.log(
                 message=(
-                    f"reset_cursor=True: ignoring saved checkpoint, "
-                    f"restarting from {self.configuration.historical_days} days ago "
-                    f"(start={default_start.isoformat()}, mod_time={default_ms})"
+                    f"reset_cursor=True: historical_days={self.configuration.historical_days}, "
+                    f"now={datetime.now(timezone.utc).isoformat()}, "
+                    f"start={default_start.isoformat()}, mod_time={default_ms}"
                 ),
                 level="info",
             )
