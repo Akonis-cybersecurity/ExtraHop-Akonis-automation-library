@@ -3,6 +3,6 @@ name: ExtraHop Detections
 slug: extrahop-detections
 description: "Security detections and audit events from the ExtraHop Reveal(x) NDR platform. Includes MITRE ATT&CK mappings, risk scoring, and network participant details."
 data_sources:
-  IDS/IPS: "Network-based security detections from ExtraHop Reveal(x)"
+  Third-party application logs: "Network-based security detections from ExtraHop Reveal(x)"
 automation_connector_uuid: c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f
 automation_module_uuid: b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e
