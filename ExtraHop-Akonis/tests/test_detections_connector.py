@@ -1,34 +1,25 @@
 """Tests for ExtraHop Detections Connector."""
 
-import json
 import pytest
+from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from extrahop.detections_connector import (
     ExtraHopDetectionsConnector,
     ExtraHopDetectionsConnectorConfiguration,
 )
-from extrahop.client.errors import ExtraHopAuthError, ExtraHopRateLimitError
+from extrahop.client.errors import ExtraHopAuthError, ExtraHopAPIError, ExtraHopRateLimitError
 
 
 class TestExtraHopDetectionsConnectorConfiguration:
     """Tests for connector configuration."""
 
     def test_default_configuration(self):
-        """Test default configuration values.
-
-        Note: Due to SDK compatibility, we check field defaults differently.
-        """
-        config = ExtraHopDetectionsConnectorConfiguration(
-            intake_key="test-intake-key",
-        )
-        # Check that intake_key is set
+        config = ExtraHopDetectionsConnectorConfiguration(intake_key="test-intake-key")
         assert config.intake_key == "test-intake-key"
-        # Configuration object should be created successfully
         assert config is not None
 
     def test_custom_configuration(self):
-        """Test custom configuration values."""
         config = ExtraHopDetectionsConnectorConfiguration(
             intake_key="test-intake-key",
             detection_categories=["sec", "sec.lateral"],
@@ -48,400 +39,403 @@ class TestExtraHopDetectionsConnectorConfiguration:
         assert config.include_audit_logs is True
 
     def test_risk_score_validation(self):
-        """Test risk score boundaries.
-
-        Note: Pydantic validation behavior depends on SDK version.
-        We test that valid boundary values work correctly.
-        """
-        # Valid min boundary
-        config_min = ExtraHopDetectionsConnectorConfiguration(
-            intake_key="test",
-            min_risk_score=0,
-        )
+        config_min = ExtraHopDetectionsConnectorConfiguration(intake_key="test", min_risk_score=0)
         assert config_min.min_risk_score == 0
 
-        # Valid max boundary
-        config_max = ExtraHopDetectionsConnectorConfiguration(
-            intake_key="test",
-            min_risk_score=99,
-        )
+        config_max = ExtraHopDetectionsConnectorConfiguration(intake_key="test", min_risk_score=99)
         assert config_max.min_risk_score == 99
 
 
-class TestDetectionFormatting:
-    """Tests for detection event formatting."""
+class TestTimestampNormalization:
+    """Tests for _normalize_timestamps helper."""
 
-    @pytest.fixture
-    def mock_connector(self, mock_module_configuration, mock_connector_configuration):
-        """Create mock connector instance."""
-        with patch.object(ExtraHopDetectionsConnector, "__init__", lambda x: None):
-            connector = ExtraHopDetectionsConnector()
-            connector._seen_detections = {}
-            connector.log = MagicMock()
+    def test_epoch_ms_to_iso(self):
+        iso = ExtraHopDetectionsConnector._epoch_ms_to_iso(1704067200000)
+        assert iso == "2024-01-01T00:00:00.000000Z"
 
-            # Mock module
-            connector.module = MagicMock()
-            connector.module.configuration.hostname = mock_module_configuration["hostname"]
-            connector.module.configuration.api_key = mock_module_configuration["api_key"]
-            connector.module.configuration.verify_ssl = mock_module_configuration["verify_ssl"]
+    def test_epoch_ms_to_iso_none(self):
+        assert ExtraHopDetectionsConnector._epoch_ms_to_iso(None) is None
 
-            # Mock configuration
-            connector.configuration = ExtraHopDetectionsConnectorConfiguration(
-                **mock_connector_configuration
-            )
+    def test_epoch_ms_to_iso_invalid(self):
+        assert ExtraHopDetectionsConnector._epoch_ms_to_iso("not_a_number") is None
 
-            return connector
+    def test_normalize_timestamps_converts_all_fields(self, sample_detection):
+        detection = dict(sample_detection)
+        result = ExtraHopDetectionsConnector._normalize_timestamps(detection)
+        # start_time, mod_time, update_time, create_time should be ISO 8601 strings
+        assert isinstance(result["start_time"], str)
+        assert "T" in result["start_time"]
+        assert result["start_time"].endswith("Z")
+        assert isinstance(result["mod_time"], str)
 
-    def test_format_detection_event_basic(self, mock_connector, sample_detection):
-        """Test basic detection event formatting."""
-        event_str = mock_connector._format_detection_event(sample_detection)
-        event = json.loads(event_str)
+    def test_normalize_timestamps_ignores_none(self):
+        event = {"start_time": None, "mod_time": 1704067200000}
+        result = ExtraHopDetectionsConnector._normalize_timestamps(event)
+        assert result["start_time"] is None
+        assert isinstance(result["mod_time"], str)
 
-        assert event["event"]["kind"] == "alert"
-        assert event["event"]["module"] == "extrahop"
-        assert event["event"]["dataset"] == "extrahop.detections"
-        assert event["observer"]["vendor"] == "ExtraHop"
-        assert event["observer"]["product"] == "Reveal(x)"
-        assert event["extrahop"]["detection"]["id"] == 12345
-
-    def test_format_detection_event_severity_critical(self, mock_connector, sample_detection):
-        """Test severity mapping for critical risk score."""
-        sample_detection["risk_score"] = 85
-        event_str = mock_connector._format_detection_event(sample_detection)
-        event = json.loads(event_str)
-
-        assert event["event"]["severity"] == 4
-        assert event["event"]["severity_label"] == "critical"
-
-    def test_format_detection_event_severity_high(self, mock_connector, sample_detection):
-        """Test severity mapping for high risk score."""
-        sample_detection["risk_score"] = 60
-        event_str = mock_connector._format_detection_event(sample_detection)
-        event = json.loads(event_str)
-
-        assert event["event"]["severity"] == 3
-        assert event["event"]["severity_label"] == "high"
-
-    def test_format_detection_event_severity_medium(self, mock_connector, sample_detection):
-        """Test severity mapping for medium risk score."""
-        sample_detection["risk_score"] = 40
-        event_str = mock_connector._format_detection_event(sample_detection)
-        event = json.loads(event_str)
-
-        assert event["event"]["severity"] == 2
-        assert event["event"]["severity_label"] == "medium"
-
-    def test_format_detection_event_severity_low(self, mock_connector, sample_detection):
-        """Test severity mapping for low risk score."""
-        sample_detection["risk_score"] = 15
-        event_str = mock_connector._format_detection_event(sample_detection)
-        event = json.loads(event_str)
-
-        assert event["event"]["severity"] == 1
-        assert event["event"]["severity_label"] == "low"
-
-    def test_format_detection_event_mitre_mapping(self, mock_connector, sample_detection):
-        """Test MITRE ATT&CK mapping extraction."""
-        event_str = mock_connector._format_detection_event(sample_detection)
-        event = json.loads(event_str)
-
-        assert "threat" in event
-        assert event["threat"]["tactic"]["id"] == ["TA0008"]
-        assert event["threat"]["technique"]["id"] == ["T1021", "T1021.002"]
-
-    def test_format_detection_event_participants(self, mock_connector, sample_detection):
-        """Test participant extraction as source/destination."""
-        event_str = mock_connector._format_detection_event(sample_detection)
-        event = json.loads(event_str)
-
-        assert event["source"]["ip"] == "192.168.1.100"
-        assert event["source"]["hostname"] == "WORKSTATION-01"
-        assert event["source"]["mac"] == "00:1A:2B:3C:4D:5E"
-
-        assert event["destination"]["ip"] == "192.168.1.10"
-        assert event["destination"]["hostname"] == "SERVER-DC01"
-        assert event["destination"]["mac"] == "00:1A:2B:3C:4D:5F"
-
-    def test_format_audit_event(self, mock_connector, sample_audit_log):
-        """Test audit log event formatting."""
-        event_str = mock_connector._format_audit_event(sample_audit_log)
-        event = json.loads(event_str)
-
-        assert event["event"]["kind"] == "event"
-        assert event["event"]["dataset"] == "extrahop.auditlog"
-        assert event["user"]["name"] == "admin"
-        assert event["extrahop"]["audit"]["id"] == 1001
+    def test_normalize_timestamps_skips_missing_fields(self):
+        event = {"id": 42}
+        result = ExtraHopDetectionsConnector._normalize_timestamps(event)
+        assert result == {"id": 42}
 
 
 class TestDeduplication:
-    """Tests for detection deduplication."""
+    """Tests for deduplication cache."""
 
     @pytest.fixture
-    def mock_connector(self, mock_module_configuration, mock_connector_configuration):
-        """Create mock connector with TTL cache."""
+    def mock_connector(self, mock_module_configuration, mock_connector_configuration, tmp_path):
         with patch.object(ExtraHopDetectionsConnector, "__init__", lambda x: None):
             connector = ExtraHopDetectionsConnector()
-            from cachetools import TTLCache
-            connector._seen_detections = TTLCache(maxsize=1000, ttl=3600)
             connector.log = MagicMock()
+            connector.log_exception = MagicMock()
+            connector._data_path = str(tmp_path)
+            connector.context_store = MagicMock()
+            connector.context_store.__enter__ = MagicMock(return_value={})
+            connector.context_store.__exit__ = MagicMock(return_value=False)
+            from sekoia_automation.storage import PersistentJSON
+            connector.event_cache_store = PersistentJSON("event_cache.json", str(tmp_path))
+            connector.event_cache_ttl = timedelta(hours=48)
+            connector.configuration = ExtraHopDetectionsConnectorConfiguration(
+                **mock_connector_configuration
+            )
             return connector
 
-    def test_is_duplicate_new_detection(self, mock_connector, sample_detection):
-        """Test new detection is not marked as duplicate."""
-        result = mock_connector._is_duplicate(sample_detection)
-        assert result is False
+    def test_compute_dedup_key_stable(self, mock_connector, sample_detection):
+        key1 = mock_connector._compute_dedup_key(sample_detection)
+        key2 = mock_connector._compute_dedup_key(sample_detection)
+        assert key1 == key2
+        assert len(key1) == 64  # SHA256 hex
 
-    def test_is_duplicate_seen_detection(self, mock_connector, sample_detection):
-        """Test seen detection is marked as duplicate."""
-        # First call - not duplicate
-        mock_connector._is_duplicate(sample_detection)
+    def test_compute_dedup_key_different_mod_time(self, mock_connector, sample_detection):
+        key1 = mock_connector._compute_dedup_key(sample_detection)
+        modified = dict(sample_detection, mod_time=sample_detection["mod_time"] + 1000)
+        key2 = mock_connector._compute_dedup_key(modified)
+        assert key1 != key2
 
-        # Second call - is duplicate
-        result = mock_connector._is_duplicate(sample_detection)
-        assert result is True
+    def test_is_new_event_first_time(self, mock_connector, sample_detection):
+        key = mock_connector._compute_dedup_key(sample_detection)
+        with patch("extrahop.detections_connector.METRICS"):
+            assert mock_connector._is_new_event(key) is True
 
-    def test_is_duplicate_same_id_different_mod_time(self, mock_connector, sample_detection):
-        """Test same detection ID with different mod_time is not duplicate."""
-        # First detection
-        mock_connector._is_duplicate(sample_detection)
-
-        # Same ID but updated (different mod_time)
-        sample_detection["mod_time"] = sample_detection["mod_time"] + 1000
-        result = mock_connector._is_duplicate(sample_detection)
-        assert result is False
-
-    def test_is_duplicate_missing_fields(self, mock_connector):
-        """Test detection with missing ID/mod_time is not duplicate."""
-        detection_no_id = {"mod_time": 1234567890}
-        detection_no_mod = {"id": 12345}
-
-        assert mock_connector._is_duplicate(detection_no_id) is False
-        assert mock_connector._is_duplicate(detection_no_mod) is False
+    def test_is_new_event_second_time(self, mock_connector, sample_detection):
+        key = mock_connector._compute_dedup_key(sample_detection)
+        with patch("extrahop.detections_connector.METRICS"):
+            mock_connector._is_new_event(key)
+            assert mock_connector._is_new_event(key) is False
 
 
 class TestCheckpointManagement:
     """Tests for checkpoint management."""
 
     @pytest.fixture
-    def mock_connector(self, mock_module_configuration, mock_connector_configuration):
-        """Create mock connector with context."""
+    def mock_connector(self, mock_connector_configuration, tmp_path):
         with patch.object(ExtraHopDetectionsConnector, "__init__", lambda x: None):
             connector = ExtraHopDetectionsConnector()
-            connector.context = {}
-            connector._checkpoint_key_detections = "last_detection_mod_time"
-            connector._checkpoint_key_audit = "last_audit_time"
-            connector.configuration = ExtraHopDetectionsConnectorConfiguration(
-                **mock_connector_configuration
-            )
-            return connector
-
-    def test_get_checkpoint_exists(self, mock_connector):
-        """Test getting existing checkpoint."""
-        mock_connector.context["last_detection_mod_time"] = 1704067200000
-        result = mock_connector._get_checkpoint("last_detection_mod_time")
-        assert result == 1704067200000
-
-    def test_get_checkpoint_not_exists(self, mock_connector):
-        """Test getting non-existent checkpoint."""
-        result = mock_connector._get_checkpoint("last_detection_mod_time")
-        assert result is None
-
-    def test_set_checkpoint(self, mock_connector):
-        """Test setting checkpoint."""
-        mock_connector._set_checkpoint("last_detection_mod_time", 1704067200000)
-        assert mock_connector.context["last_detection_mod_time"] == 1704067200000
-
-    def test_get_initial_mod_time(self, mock_connector):
-        """Test getting initial mod_time for first run."""
-        import time
-        before = int((time.time() - 7 * 24 * 3600) * 1000)
-        result = mock_connector._get_initial_mod_time()
-        after = int((time.time() - 7 * 24 * 3600) * 1000)
-
-        assert before <= result <= after
-
-
-class TestProcessDetections:
-    """Tests for detection processing."""
-
-    @pytest.fixture
-    def mock_connector(self, mock_module_configuration, mock_connector_configuration):
-        """Create mock connector."""
-        with patch.object(ExtraHopDetectionsConnector, "__init__", lambda x: None):
-            connector = ExtraHopDetectionsConnector()
-            from cachetools import TTLCache
-            connector._seen_detections = TTLCache(maxsize=1000, ttl=3600)
-            connector.context = {}
-            connector._checkpoint_key_detections = "last_detection_mod_time"
             connector.log = MagicMock()
+            connector._data_path = str(tmp_path)
+            from sekoia_automation.storage import PersistentJSON
+            connector.context_store = PersistentJSON("context.json", str(tmp_path))
+            connector.event_cache_store = PersistentJSON("event_cache.json", str(tmp_path))
+            connector.event_cache_ttl = timedelta(hours=48)
             connector.configuration = ExtraHopDetectionsConnectorConfiguration(
                 **mock_connector_configuration
             )
             return connector
 
-    @pytest.mark.asyncio
-    async def test_process_detections_updates_checkpoint(
-        self, mock_connector, sample_detection, sample_detection_c2
-    ):
-        """Test that processing detections updates checkpoint to max mod_time."""
-        with patch("extrahop.detections_connector.METRICS"):
-            detections = [sample_detection, sample_detection_c2]
-            await mock_connector._process_detections(detections)
+    def test_last_checkpoint_default(self, mock_connector):
+        """When no checkpoint saved, returns now - historical_days in epoch ms."""
+        result = mock_connector.last_checkpoint()
+        expected = datetime.now(timezone.utc) - timedelta(days=7)
+        expected_ms = int(expected.timestamp() * 1000)
+        # Allow ±10 seconds tolerance
+        assert abs(result - expected_ms) < 10000
 
-            # Max mod_time should be from sample_detection_c2 (1704082000000)
-            assert mock_connector.context["last_detection_mod_time"] == 1704082000000
+    def test_last_checkpoint_saved(self, mock_connector):
+        """Returns saved checkpoint."""
+        saved_ms = 1704067200000
+        with mock_connector.context_store as c:
+            c["last_detection_mod_time"] = saved_ms
+        result = mock_connector.last_checkpoint()
+        assert result == saved_ms
 
-    @pytest.mark.asyncio
-    async def test_process_detections_filters_duplicates(self, mock_connector, sample_detection):
-        """Test that duplicate detections are filtered."""
-        with patch("extrahop.detections_connector.METRICS"):
-            # Process same detection twice
-            events1 = await mock_connector._process_detections([sample_detection])
-            events2 = await mock_connector._process_detections([sample_detection])
+    def test_save_checkpoint(self, mock_connector):
+        """Saves checkpoint to store."""
+        mock_connector.save_checkpoint(1704067200000)
+        with mock_connector.context_store as c:
+            assert c["last_detection_mod_time"] == 1704067200000
 
-            assert len(events1) == 1
-            assert len(events2) == 0  # Duplicate filtered
+    def test_last_checkpoint_invalid_value(self, mock_connector):
+        """Invalid stored value falls back to default."""
+        with mock_connector.context_store as c:
+            c["last_detection_mod_time"] = "not_a_number"
+        result = mock_connector.last_checkpoint()
+        expected_ms = int(
+            (datetime.now(timezone.utc) - timedelta(days=7)).timestamp() * 1000
+        )
+        assert abs(result - expected_ms) < 10000
 
-    @pytest.mark.asyncio
-    async def test_process_detections_returns_formatted_events(
-        self, mock_connector, sample_detection
-    ):
-        """Test that processed detections are properly formatted."""
-        with patch("extrahop.detections_connector.METRICS"):
-            events = await mock_connector._process_detections([sample_detection])
+    def test_last_audit_checkpoint_default(self, mock_connector):
+        result = mock_connector.last_audit_checkpoint()
+        expected_ms = int(
+            (datetime.now(timezone.utc) - timedelta(days=7)).timestamp() * 1000
+        )
+        assert abs(result - expected_ms) < 10000
 
-            assert len(events) == 1
-            event = json.loads(events[0])
-            assert event["extrahop"]["detection"]["id"] == 12345
+    def test_save_audit_checkpoint(self, mock_connector):
+        mock_connector.save_audit_checkpoint(1704067200000)
+        with mock_connector.context_store as c:
+            assert c["last_audit_time"] == 1704067200000
+
+    def test_reset_cursor_clears_checkpoint(self, mock_connector):
+        """reset_cursor=True returns default and clears saved checkpoint."""
+        mock_connector.configuration.reset_cursor = True
+        # Pre-save a checkpoint
+        with mock_connector.context_store as c:
+            c["last_detection_mod_time"] = 1704067200000
+
+        result = mock_connector.last_checkpoint()
+        expected_ms = int(
+            (datetime.now(timezone.utc) - timedelta(days=7)).timestamp() * 1000
+        )
+        assert abs(result - expected_ms) < 10000
+
+        # Checkpoint should be cleared
+        with mock_connector.context_store as c:
+            assert c.get("last_detection_mod_time") is None
 
 
-class TestConnectorIntegration:
-    """Integration tests for connector."""
+class TestFetchEvents:
+    """Tests for fetch_events async generator."""
 
     @pytest.fixture
-    def mock_connector(self, mock_module_configuration, mock_connector_configuration):
-        """Create fully mocked connector."""
+    def mock_connector(self, mock_module_configuration, mock_connector_configuration, tmp_path):
         with patch.object(ExtraHopDetectionsConnector, "__init__", lambda x: None):
             connector = ExtraHopDetectionsConnector()
-            from cachetools import TTLCache
-            connector._seen_detections = TTLCache(maxsize=1000, ttl=3600)
-            connector.context = {}
-            connector._checkpoint_key_detections = "last_detection_mod_time"
-            connector._checkpoint_key_audit = "last_audit_time"
+            connector.log = MagicMock()
+            connector.log_exception = MagicMock()
+            connector._data_path = str(tmp_path)
+            from sekoia_automation.storage import PersistentJSON
+            connector.context_store = PersistentJSON("context.json", str(tmp_path))
+            connector.event_cache_store = PersistentJSON("event_cache.json", str(tmp_path))
+            connector.event_cache_ttl = timedelta(hours=48)
             connector._client = None
-            connector.log = MagicMock()
-            connector.push_data_to_intakes = AsyncMock()
-
-            # Mock module
             connector.module = MagicMock()
             connector.module.configuration.hostname = mock_module_configuration["hostname"]
             connector.module.configuration.api_key = mock_module_configuration["api_key"]
             connector.module.configuration.verify_ssl = mock_module_configuration["verify_ssl"]
-
-            # Mock configuration
             connector.configuration = ExtraHopDetectionsConnectorConfiguration(
                 **mock_connector_configuration
             )
-
             return connector
 
     @pytest.mark.asyncio
-    async def test_next_batch_success(
+    async def test_fetch_events_yields_detections(
         self, mock_connector, sample_detection, sample_detection_c2
     ):
-        """Test successful batch processing."""
+        """fetch_events yields detection batches."""
         mock_client = AsyncMock()
         mock_client.fetch_all_detections = AsyncMock(
             return_value=[sample_detection, sample_detection_c2]
         )
-        mock_client.get_audit_log = AsyncMock(return_value=[])
-
         mock_connector._client = mock_client
 
         with patch("extrahop.detections_connector.METRICS"):
-            events, has_more = await mock_connector.next_batch()
+            batches = []
+            async for batch in mock_connector.fetch_events():
+                batches.append(batch)
 
-        assert len(events) == 2
-        assert has_more is False
-        mock_connector.push_data_to_intakes.assert_called_once()
+        assert len(batches) >= 1
+        all_events = [ev for b in batches for ev in b]
+        assert len(all_events) == 2
 
     @pytest.mark.asyncio
-    async def test_next_batch_with_audit_logs(
+    async def test_fetch_events_empty(self, mock_connector):
+        """fetch_events yields nothing when no detections."""
+        mock_client = AsyncMock()
+        mock_client.fetch_all_detections = AsyncMock(return_value=[])
+        mock_connector._client = mock_client
+
+        with patch("extrahop.detections_connector.METRICS"):
+            batches = []
+            async for batch in mock_connector.fetch_events():
+                batches.append(batch)
+
+        assert batches == []
+
+    @pytest.mark.asyncio
+    async def test_fetch_events_deduplicates(self, mock_connector, sample_detection):
+        """Same detection not yielded twice."""
+        mock_client = AsyncMock()
+        mock_client.fetch_all_detections = AsyncMock(return_value=[sample_detection])
+        mock_connector._client = mock_client
+
+        with patch("extrahop.detections_connector.METRICS"):
+            # First call
+            count1 = 0
+            async for batch in mock_connector.fetch_events():
+                count1 += len(batch)
+            # Second call with same detection (already in cache)
+            count2 = 0
+            async for batch in mock_connector.fetch_events():
+                count2 += len(batch)
+
+        assert count1 == 1
+        assert count2 == 0
+
+    @pytest.mark.asyncio
+    async def test_fetch_events_auth_error_propagates(self, mock_connector):
+        """ExtraHopAuthError from fetch_all_detections propagates up."""
+        mock_client = AsyncMock()
+        mock_client.fetch_all_detections = AsyncMock(
+            side_effect=ExtraHopAuthError("Invalid key", 401)
+        )
+        mock_connector._client = mock_client
+
+        with patch("extrahop.detections_connector.METRICS"):
+            with pytest.raises(ExtraHopAuthError):
+                async for _ in mock_connector.fetch_events():
+                    pass
+
+    @pytest.mark.asyncio
+    async def test_fetch_events_api_error_returns_empty(self, mock_connector):
+        """ExtraHopAPIError from fetch_all_detections causes early return."""
+        mock_client = AsyncMock()
+        mock_client.fetch_all_detections = AsyncMock(
+            side_effect=ExtraHopAPIError("Server error", 500)
+        )
+        mock_connector._client = mock_client
+
+        with patch("extrahop.detections_connector.METRICS"):
+            batches = []
+            async for batch in mock_connector.fetch_events():
+                batches.append(batch)
+
+        assert batches == []
+
+    @pytest.mark.asyncio
+    async def test_fetch_events_normalizes_timestamps(self, mock_connector, sample_detection):
+        """Timestamps in yielded events are ISO 8601 strings."""
+        mock_client = AsyncMock()
+        mock_client.fetch_all_detections = AsyncMock(return_value=[sample_detection])
+        mock_connector._client = mock_client
+
+        with patch("extrahop.detections_connector.METRICS"):
+            events = []
+            async for batch in mock_connector.fetch_events():
+                events.extend(batch)
+
+        assert len(events) == 1
+        assert isinstance(events[0]["start_time"], str)
+        assert "T" in events[0]["start_time"]
+
+    @pytest.mark.asyncio
+    async def test_fetch_events_with_audit_logs(
         self, mock_connector, sample_detection, sample_audit_log
     ):
-        """Test batch processing with audit logs enabled."""
+        """With include_audit_logs=True, audit log batch is also yielded."""
         mock_connector.configuration.include_audit_logs = True
 
         mock_client = AsyncMock()
         mock_client.fetch_all_detections = AsyncMock(return_value=[sample_detection])
         mock_client.get_audit_log = AsyncMock(return_value=[sample_audit_log])
-
         mock_connector._client = mock_client
 
         with patch("extrahop.detections_connector.METRICS"):
-            events, has_more = await mock_connector.next_batch()
+            batches = []
+            async for batch in mock_connector.fetch_events():
+                batches.append(batch)
 
-        assert len(events) == 2  # 1 detection + 1 audit log
+        # At least 2 batches: one for detections, one for audit logs
+        all_events = [ev for b in batches for ev in b]
+        assert len(all_events) == 2
         mock_client.get_audit_log.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_next_batch_empty_results(self, mock_connector):
-        """Test batch processing with no results."""
+    async def test_fetch_events_audit_logs_disabled(self, mock_connector, sample_detection):
+        """With include_audit_logs=False, audit log API is not called."""
+        mock_connector.configuration.include_audit_logs = False
+
+        mock_client = AsyncMock()
+        mock_client.fetch_all_detections = AsyncMock(return_value=[sample_detection])
+        mock_client.get_audit_log = AsyncMock(return_value=[])
+        mock_connector._client = mock_client
+
+        with patch("extrahop.detections_connector.METRICS"):
+            async for _ in mock_connector.fetch_events():
+                pass
+
+        mock_client.get_audit_log.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_fetch_events_updates_checkpoint(
+        self, mock_connector, sample_detection, sample_detection_c2
+    ):
+        """Checkpoint is updated to max mod_time after fetching."""
+        mock_client = AsyncMock()
+        mock_client.fetch_all_detections = AsyncMock(
+            return_value=[sample_detection, sample_detection_c2]
+        )
+        mock_connector._client = mock_client
+
+        with patch("extrahop.detections_connector.METRICS"):
+            async for _ in mock_connector.fetch_events():
+                pass
+
+        # max mod_time from sample_detection_c2 is 1704082000000
+        with mock_connector.context_store as c:
+            assert c.get("last_detection_mod_time") == 1704082000000
+
+
+class TestNextBatch:
+    """Tests for next_batch async generator."""
+
+    @pytest.fixture
+    def mock_connector(self, mock_module_configuration, mock_connector_configuration, tmp_path):
+        with patch.object(ExtraHopDetectionsConnector, "__init__", lambda x: None):
+            connector = ExtraHopDetectionsConnector()
+            connector.log = MagicMock()
+            connector._data_path = str(tmp_path)
+            from sekoia_automation.storage import PersistentJSON
+            connector.context_store = PersistentJSON("context.json", str(tmp_path))
+            connector.event_cache_store = PersistentJSON("event_cache.json", str(tmp_path))
+            connector.event_cache_ttl = timedelta(hours=48)
+            connector._client = None
+            connector.module = MagicMock()
+            connector.module.configuration.hostname = mock_module_configuration["hostname"]
+            connector.module.configuration.api_key = mock_module_configuration["api_key"]
+            connector.module.configuration.verify_ssl = mock_module_configuration["verify_ssl"]
+            connector.configuration = ExtraHopDetectionsConnectorConfiguration(
+                **mock_connector_configuration
+            )
+            return connector
+
+    @pytest.mark.asyncio
+    async def test_next_batch_yields_batches(self, mock_connector, sample_detection):
+        """next_batch yields event batches from fetch_events."""
+        mock_client = AsyncMock()
+        mock_client.fetch_all_detections = AsyncMock(return_value=[sample_detection])
+        mock_connector._client = mock_client
+
+        with patch("extrahop.detections_connector.METRICS"):
+            batches = []
+            async for batch in mock_connector.next_batch():
+                batches.append(batch)
+
+        assert len(batches) >= 1
+
+    @pytest.mark.asyncio
+    async def test_next_batch_empty(self, mock_connector):
         mock_client = AsyncMock()
         mock_client.fetch_all_detections = AsyncMock(return_value=[])
-        mock_client.get_audit_log = AsyncMock(return_value=[])
-
         mock_connector._client = mock_client
 
         with patch("extrahop.detections_connector.METRICS"):
-            events, has_more = await mock_connector.next_batch()
+            batches = []
+            async for batch in mock_connector.next_batch():
+                batches.append(batch)
 
-        assert len(events) == 0
-        mock_connector.push_data_to_intakes.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_next_batch_auth_error(self, mock_connector):
-        """Test batch processing with authentication error."""
-        mock_client = AsyncMock()
-        mock_client.fetch_all_detections = AsyncMock(
-            side_effect=ExtraHopAuthError("Invalid API key", 401)
-        )
-
-        mock_connector._client = mock_client
-
-        with patch("extrahop.detections_connector.METRICS"):
-            with pytest.raises(ExtraHopAuthError):
-                await mock_connector.next_batch()
-
-    @pytest.mark.asyncio
-    async def test_next_batch_rate_limit_error(self, mock_connector):
-        """Test batch processing with rate limit error."""
-        mock_client = AsyncMock()
-        mock_client.fetch_all_detections = AsyncMock(
-            side_effect=ExtraHopRateLimitError("Rate limited", retry_after=60)
-        )
-
-        mock_connector._client = mock_client
-
-        with patch("extrahop.detections_connector.METRICS"):
-            with pytest.raises(ExtraHopRateLimitError):
-                await mock_connector.next_batch()
-
-    @pytest.mark.asyncio
-    async def test_next_batch_api_error(self, mock_connector):
-        """Test batch processing with API error."""
-        from extrahop.client.errors import ExtraHopAPIError
-
-        mock_client = AsyncMock()
-        mock_client.fetch_all_detections = AsyncMock(
-            side_effect=ExtraHopAPIError("Server error", 500)
-        )
-
-        mock_connector._client = mock_client
-
-        with patch("extrahop.detections_connector.METRICS"):
-            with pytest.raises(ExtraHopAPIError):
-                await mock_connector.next_batch()
+        assert batches == []
 
 
 class TestClientManagement:
@@ -449,7 +443,6 @@ class TestClientManagement:
 
     @pytest.fixture
     def mock_connector(self, mock_module_configuration, mock_connector_configuration):
-        """Create mock connector."""
         with patch.object(ExtraHopDetectionsConnector, "__init__", lambda x: None):
             connector = ExtraHopDetectionsConnector()
             connector._client = None
@@ -457,25 +450,23 @@ class TestClientManagement:
             connector.module.configuration.hostname = mock_module_configuration["hostname"]
             connector.module.configuration.api_key = mock_module_configuration["api_key"]
             connector.module.configuration.verify_ssl = mock_module_configuration["verify_ssl"]
+            connector.module.configuration.client_id = ""
+            connector.module.configuration.client_secret = ""
             return connector
 
     def test_client_property_creates_client(self, mock_connector):
-        """Test that client property creates client."""
         from extrahop.client.http_client import ExtraHopClient
-
         client = mock_connector.client
         assert isinstance(client, ExtraHopClient)
         assert client.hostname == "extrahop.example.com"
 
     def test_client_property_caches_client(self, mock_connector):
-        """Test that client property caches client."""
         client1 = mock_connector.client
         client2 = mock_connector.client
         assert client1 is client2
 
     @pytest.mark.asyncio
     async def test_close_client(self, mock_connector):
-        """Test client closing."""
         mock_client = AsyncMock()
         mock_connector._client = mock_client
 
@@ -486,269 +477,6 @@ class TestClientManagement:
 
     @pytest.mark.asyncio
     async def test_close_client_when_none(self, mock_connector):
-        """Test closing when client is None."""
         mock_connector._client = None
-
         await mock_connector._close_client()  # Should not raise
         assert mock_connector._client is None
-
-
-class TestCheckpointAdvanced:
-    """Advanced checkpoint tests."""
-
-    @pytest.fixture
-    def mock_connector(self, mock_connector_configuration):
-        """Create mock connector."""
-        with patch.object(ExtraHopDetectionsConnector, "__init__", lambda x: None):
-            connector = ExtraHopDetectionsConnector()
-            connector.context = {}
-            connector._checkpoint_key_detections = "last_detection_mod_time"
-            connector.configuration = ExtraHopDetectionsConnectorConfiguration(
-                **mock_connector_configuration
-            )
-            return connector
-
-    def test_get_checkpoint_invalid_value(self, mock_connector):
-        """Test getting checkpoint with invalid value returns None."""
-        mock_connector.context["last_detection_mod_time"] = "invalid"
-        result = mock_connector._get_checkpoint("last_detection_mod_time")
-        assert result is None
-
-    def test_get_checkpoint_with_string_number(self, mock_connector):
-        """Test getting checkpoint with string number."""
-        mock_connector.context["last_detection_mod_time"] = "1704067200000"
-        result = mock_connector._get_checkpoint("last_detection_mod_time")
-        assert result == 1704067200000
-
-
-class TestFetchDetectionsErrorHandling:
-    """Tests for fetch detections error handling."""
-
-    @pytest.fixture
-    def mock_connector(self, mock_module_configuration, mock_connector_configuration):
-        """Create mock connector."""
-        with patch.object(ExtraHopDetectionsConnector, "__init__", lambda x: None):
-            connector = ExtraHopDetectionsConnector()
-            from cachetools import TTLCache
-            connector._seen_detections = TTLCache(maxsize=1000, ttl=3600)
-            connector.context = {}
-            connector._checkpoint_key_detections = "last_detection_mod_time"
-            connector._client = None
-            connector.log = MagicMock()
-
-            connector.module = MagicMock()
-            connector.module.configuration.hostname = mock_module_configuration["hostname"]
-            connector.module.configuration.api_key = mock_module_configuration["api_key"]
-            connector.module.configuration.verify_ssl = mock_module_configuration["verify_ssl"]
-
-            connector.configuration = ExtraHopDetectionsConnectorConfiguration(
-                **mock_connector_configuration
-            )
-            return connector
-
-    @pytest.mark.asyncio
-    async def test_fetch_detections_rate_limit_error(self, mock_connector):
-        """Test fetch detections with rate limit error."""
-        mock_client = AsyncMock()
-        mock_client.fetch_all_detections = AsyncMock(
-            side_effect=ExtraHopRateLimitError("Rate limited")
-        )
-        mock_connector._client = mock_client
-
-        with patch("extrahop.detections_connector.METRICS"):
-            with pytest.raises(ExtraHopRateLimitError):
-                await mock_connector._fetch_detections()
-
-    @pytest.mark.asyncio
-    async def test_fetch_detections_api_error(self, mock_connector):
-        """Test fetch detections with API error."""
-        from extrahop.client.errors import ExtraHopAPIError
-
-        mock_client = AsyncMock()
-        mock_client.fetch_all_detections = AsyncMock(
-            side_effect=ExtraHopAPIError("Server error", 500)
-        )
-        mock_connector._client = mock_client
-
-        with patch("extrahop.detections_connector.METRICS"):
-            with pytest.raises(ExtraHopAPIError):
-                await mock_connector._fetch_detections()
-
-
-class TestFetchAuditLogs:
-    """Tests for fetch audit logs."""
-
-    @pytest.fixture
-    def mock_connector(self, mock_module_configuration, mock_connector_configuration):
-        """Create mock connector."""
-        with patch.object(ExtraHopDetectionsConnector, "__init__", lambda x: None):
-            connector = ExtraHopDetectionsConnector()
-            connector._client = None
-            connector.log = MagicMock()
-
-            connector.module = MagicMock()
-            connector.module.configuration.hostname = mock_module_configuration["hostname"]
-            connector.module.configuration.api_key = mock_module_configuration["api_key"]
-            connector.module.configuration.verify_ssl = mock_module_configuration["verify_ssl"]
-
-            connector.configuration = ExtraHopDetectionsConnectorConfiguration(
-                **mock_connector_configuration
-            )
-            return connector
-
-    @pytest.mark.asyncio
-    async def test_fetch_audit_logs_disabled(self, mock_connector):
-        """Test fetch audit logs when disabled."""
-        mock_connector.configuration.include_audit_logs = False
-
-        result = await mock_connector._fetch_audit_logs()
-
-        assert result == []
-
-    @pytest.mark.asyncio
-    async def test_fetch_audit_logs_api_error(self, mock_connector, sample_audit_log):
-        """Test fetch audit logs with API error."""
-        from extrahop.client.errors import ExtraHopAPIError
-
-        mock_connector.configuration.include_audit_logs = True
-        mock_client = AsyncMock()
-        mock_client.get_audit_log = AsyncMock(
-            side_effect=ExtraHopAPIError("Server error", 500)
-        )
-        mock_connector._client = mock_client
-
-        result = await mock_connector._fetch_audit_logs()
-
-        assert result == []  # Should return empty list on error
-
-
-class TestProcessDetectionsRiskLevels:
-    """Tests for risk level handling in process detections."""
-
-    @pytest.fixture
-    def mock_connector(self, mock_module_configuration, mock_connector_configuration):
-        """Create mock connector."""
-        with patch.object(ExtraHopDetectionsConnector, "__init__", lambda x: None):
-            connector = ExtraHopDetectionsConnector()
-            from cachetools import TTLCache
-            connector._seen_detections = TTLCache(maxsize=1000, ttl=3600)
-            connector.context = {}
-            connector._checkpoint_key_detections = "last_detection_mod_time"
-            connector.log = MagicMock()
-            connector.configuration = ExtraHopDetectionsConnectorConfiguration(
-                **mock_connector_configuration
-            )
-            return connector
-
-    @pytest.mark.asyncio
-    async def test_process_detection_high_risk(self, mock_connector, sample_detection):
-        """Test processing detection with high risk score (50-74)."""
-        sample_detection["risk_score"] = 60
-        sample_detection["id"] = 99001
-
-        with patch("extrahop.detections_connector.METRICS") as mock_metrics:
-            await mock_connector._process_detections([sample_detection])
-            mock_metrics.detections_by_risk.labels.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_process_detection_medium_risk(self, mock_connector, sample_detection):
-        """Test processing detection with medium risk score (30-49)."""
-        sample_detection["risk_score"] = 40
-        sample_detection["id"] = 99002
-
-        with patch("extrahop.detections_connector.METRICS") as mock_metrics:
-            await mock_connector._process_detections([sample_detection])
-            mock_metrics.detections_by_risk.labels.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_process_detection_low_risk(self, mock_connector, sample_detection):
-        """Test processing detection with low risk score (<30)."""
-        sample_detection["risk_score"] = 15
-        sample_detection["id"] = 99003
-
-        with patch("extrahop.detections_connector.METRICS") as mock_metrics:
-            await mock_connector._process_detections([sample_detection])
-            mock_metrics.detections_by_risk.labels.assert_called()
-
-
-class TestRunMethod:
-    """Tests for the main run method."""
-
-    @pytest.fixture
-    def mock_connector(self, mock_module_configuration, mock_connector_configuration):
-        """Create mock connector for run tests."""
-        with patch.object(ExtraHopDetectionsConnector, "__init__", lambda x: None):
-            connector = ExtraHopDetectionsConnector()
-            from cachetools import TTLCache
-            connector._seen_detections = TTLCache(maxsize=1000, ttl=3600)
-            connector.context = {}
-            connector._checkpoint_key_detections = "last_detection_mod_time"
-            connector._checkpoint_key_audit = "last_audit_time"
-            connector._client = None
-            connector.log = MagicMock()
-            connector.push_data_to_intakes = AsyncMock()
-            # Note: 'running' is a read-only property, mocked per-test as needed
-
-            connector.module = MagicMock()
-            connector.module.configuration.hostname = mock_module_configuration["hostname"]
-            connector.module.configuration.api_key = mock_module_configuration["api_key"]
-            connector.module.configuration.verify_ssl = mock_module_configuration["verify_ssl"]
-
-            connector.configuration = ExtraHopDetectionsConnectorConfiguration(
-                **mock_connector_configuration
-            )
-            return connector
-
-    @pytest.mark.asyncio
-    async def test_run_connection_failed(self, mock_connector):
-        """Test run when connection test fails."""
-        mock_client = AsyncMock()
-        mock_client.test_connection = AsyncMock(return_value=False)
-        mock_client.close = AsyncMock()
-        mock_connector._client = mock_client
-
-        await mock_connector.run()
-
-        mock_connector.log.assert_any_call(
-            message="Failed to connect to ExtraHop API", level="error"
-        )
-
-    @pytest.mark.asyncio
-    async def test_run_connection_exception(self, mock_connector):
-        """Test run when connection test raises exception."""
-        mock_client = AsyncMock()
-        mock_client.test_connection = AsyncMock(side_effect=Exception("Network error"))
-        mock_client.close = AsyncMock()
-        mock_connector._client = mock_client
-
-        await mock_connector.run()
-
-        mock_connector.log.assert_any_call(
-            message="Connection test failed: Network error", level="error"
-        )
-
-    @pytest.mark.asyncio
-    async def test_run_success_single_iteration(self, mock_connector, sample_detection):
-        """Test successful run with single iteration."""
-        mock_client = AsyncMock()
-        mock_client.test_connection = AsyncMock(return_value=True)
-        mock_client.fetch_all_detections = AsyncMock(return_value=[sample_detection])
-        mock_client.get_audit_log = AsyncMock(return_value=[])
-        mock_client.close = AsyncMock()
-        mock_connector._client = mock_client
-
-        # Set running to True, then False after first iteration
-        call_count = 0
-
-        def running_property():
-            nonlocal call_count
-            call_count += 1
-            return call_count <= 1
-
-        type(mock_connector).running = property(lambda self: running_property())
-
-        with patch("extrahop.detections_connector.METRICS"):
-            with patch("asyncio.sleep", new_callable=AsyncMock):
-                await mock_connector.run()
-
-        mock_client.close.assert_called_once()

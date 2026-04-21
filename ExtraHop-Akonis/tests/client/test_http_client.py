@@ -44,13 +44,14 @@ class TestExtraHopClientInit:
         )
         assert client.hostname == "extrahop.example.com"
 
-    def test_headers_contain_auth(self):
+    @pytest.mark.asyncio
+    async def test_headers_contain_auth(self):
         """Test headers include proper authentication."""
         client = ExtraHopClient(
             hostname="extrahop.example.com",
             api_key="my-api-key",
         )
-        headers = client._headers
+        headers = await client._get_auth_headers()
         assert headers["Authorization"] == "ExtraHop apikey=my-api-key"
         assert headers["Content-Type"] == "application/json"
         assert headers["Accept"] == "application/json"
@@ -369,7 +370,7 @@ class TestTestConnection:
 
     @pytest.mark.asyncio
     async def test_connection_auth_failure(self, client):
-        """Test connection with auth failure."""
+        """Test connection with auth failure raises ExtraHopAuthError."""
         with aioresponses() as mocked:
             mocked.get(
                 "https://extrahop.example.com/api/v1/detections/formats",
@@ -378,9 +379,8 @@ class TestTestConnection:
             )
 
             async with client:
-                result = await client.test_connection()
-
-            assert result is False
+                with pytest.raises(ExtraHopAuthError):
+                    await client.test_connection()
 
 
 class TestFetchAllDetections:
@@ -648,22 +648,16 @@ class TestConnectionAdvanced:
 
     @pytest.mark.asyncio
     async def test_connection_generic_exception(self, client):
-        """Test connection with generic exception."""
+        """Test connection with generic exception raises the exception."""
         with aioresponses() as mocked:
-            # Mock a network error by not adding any response
-            mocked.post(
-                "https://extrahop.example.com/api/v1/detections/search",
-                exception=Exception("Network error"),
-            )
             mocked.get(
                 "https://extrahop.example.com/api/v1/detections/formats",
                 exception=Exception("Network error"),
             )
 
             async with client:
-                result = await client.test_connection()
-
-            assert result is False
+                with pytest.raises(Exception, match="Network error"):
+                    await client.test_connection()
 
 
 class TestErrorHandlingAdvanced:
