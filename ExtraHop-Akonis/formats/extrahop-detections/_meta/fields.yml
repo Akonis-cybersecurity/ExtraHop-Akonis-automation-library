@@ -40,24 +40,24 @@ extrahop.detection.resolution:
   type: keyword
 
 extrahop.detection.mod_time:
-  description: Last modification time of the detection (epoch ms).
+  description: Last modification time of the detection (ISO 8601).
   name: extrahop.detection.mod_time
-  type: long
+  type: keyword
 
 extrahop.detection.start_time:
-  description: Start time of the detection (epoch ms).
+  description: Start time of the detection (ISO 8601).
   name: extrahop.detection.start_time
-  type: long
+  type: keyword
 
 extrahop.detection.end_time:
-  description: End time of the detection (epoch ms).
+  description: End time of the detection (ISO 8601).
   name: extrahop.detection.end_time
-  type: long
+  type: keyword
 
 extrahop.detection.update_time:
-  description: Update time of the detection (epoch ms).
+  description: Update time of the detection (ISO 8601).
   name: extrahop.detection.update_time
-  type: long
+  type: keyword
 
 extrahop.detection.mitre_tactics:
   description: MITRE ATT&CK tactic IDs.
