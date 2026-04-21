@@ -29,13 +29,13 @@ stages:
   set_timestamp:
     actions:
       - set:
-          "@timestamp": "{{ parsed_event.message.start_time | int | datetime('s', milliseconds=True) }}"
+          "@timestamp": "{{ parsed_event.message.start_time }}"
         filter: >-
           {{ parsed_event.message.start_time is defined and
              parsed_event.message.start_time is not none }}
 
       - set:
-          "@timestamp": "{{ parsed_event.message.mod_time | int | datetime('s', milliseconds=True) }}"
+          "@timestamp": "{{ parsed_event.message.mod_time }}"
         filter: >-
           {{ final['@timestamp'] is not defined and
              parsed_event.message.mod_time is defined and
