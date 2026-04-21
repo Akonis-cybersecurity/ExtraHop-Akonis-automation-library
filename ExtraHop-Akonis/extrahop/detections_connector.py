@@ -31,7 +31,7 @@ class ExtraHopDetectionsConnectorConfiguration(DefaultConnectorConfiguration):
 
     detection_categories: list = []
     min_risk_score: int = 0
-    detection_statuses: list = ["new", "in_progress", "acknowledged"]
+    detection_statuses: list = []
     polling_frequency_minutes: int = 5
     historical_days: int = 7
     batch_size: int = 1000
