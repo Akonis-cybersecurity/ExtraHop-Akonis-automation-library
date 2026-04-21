@@ -28,22 +28,19 @@ stages:
 
   set_timestamp:
     actions:
-      # Detection: use start_time (already ISO 8601 from connector)
       - set:
-          "@timestamp": "{{ parsed_event.message.start_time }}"
+          "@timestamp": "{{ (parsed_event.message.start_time | int / 1000) | datetime }}"
         filter: >-
           {{ parsed_event.message.start_time is defined and
              parsed_event.message.start_time is not none }}
 
-      # Detection fallback: use mod_time
       - set:
-          "@timestamp": "{{ parsed_event.message.mod_time }}"
+          "@timestamp": "{{ (parsed_event.message.mod_time | int / 1000) | datetime }}"
         filter: >-
           {{ final['@timestamp'] is not defined and
              parsed_event.message.mod_time is defined and
              parsed_event.message.mod_time is not none }}
 
-      # Audit log: use occur_time
       - set:
           "@timestamp": "{{ parsed_event.message.occur_time }}"
         filter: >-
